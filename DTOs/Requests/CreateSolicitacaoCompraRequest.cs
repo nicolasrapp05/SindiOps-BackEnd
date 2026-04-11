@@ -1,0 +1,12 @@
+namespace SindiCore.API.DTOs.Requests;
+
+public class CreateSolicitacaoCompraRequest
+{
+    public Guid CondominioId { get; set; }
+    public string Categoria { get; set; } = string.Empty;
+    public string Item { get; set; } = string.Empty;
+    public decimal Quantidade { get; set; }
+    public bool EReposicao { get; set; }
+    public string? Justificativa { get; set; }
+    public string TipoAprovacao { get; set; } = string.Empty;
+}
