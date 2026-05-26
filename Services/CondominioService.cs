@@ -218,6 +218,55 @@ public class CondominioService : ICondominioService
         await _db.SaveChangesAsync();
     }
 
+    public async Task<BlocoResponse> UpdateBlocoAsync(
+        Guid condominioId, Guid blocoId, UpdateBlocoRequest request, Guid sindicoId)
+    {
+        await VerificarPropriedadeAsync(condominioId, sindicoId);
+
+        var bloco = await _db.Blocos
+            .Include(b => b.Unidades)
+            .FirstOrDefaultAsync(b => b.Id == blocoId && b.CondominioId == condominioId)
+            ?? throw new KeyNotFoundException("Bloco não encontrado");
+
+        bloco.Nome = request.Nome;
+        await _db.SaveChangesAsync();
+
+        return _mapper.Map<BlocoResponse>(bloco);
+    }
+
+    public async Task<UnidadeResponse> UpdateUnidadeAsync(
+        Guid condominioId, Guid blocoId, Guid unidadeId, UpdateUnidadeRequest request, Guid sindicoId)
+    {
+        await VerificarPropriedadeAsync(condominioId, sindicoId);
+
+        var unidade = await _db.Unidades
+            .FirstOrDefaultAsync(u => u.Id == unidadeId && u.BlocoId == blocoId && u.CondominioId == condominioId)
+            ?? throw new KeyNotFoundException("Unidade não encontrada");
+
+        unidade.Numero = request.Numero;
+        await _db.SaveChangesAsync();
+
+        return new UnidadeResponse { Id = unidade.Id, Numero = unidade.Numero };
+    }
+
+    public async Task DeleteUnidadeAsync(
+        Guid condominioId, Guid blocoId, Guid unidadeId, Guid sindicoId)
+    {
+        await VerificarPropriedadeAsync(condominioId, sindicoId);
+
+        var unidade = await _db.Unidades
+            .FirstOrDefaultAsync(u => u.Id == unidadeId && u.BlocoId == blocoId && u.CondominioId == condominioId)
+            ?? throw new KeyNotFoundException("Unidade não encontrada");
+
+        var hasMoradores = await _db.Moradores.AnyAsync(m => m.UnidadeId == unidadeId);
+        if (hasMoradores)
+            throw new InvalidOperationException(
+                "Não é possível remover a unidade pois existem moradores vinculados a ela");
+
+        _db.Unidades.Remove(unidade);
+        await _db.SaveChangesAsync();
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────
 
     private async Task VerificarPropriedadeAsync(Guid condominioId, Guid sindicoId)

@@ -123,4 +123,40 @@ public class CondominiosController : ControllerBase
             return BadRequest(ApiResponse<object>.Fail(ex.Message));
         }
     }
+
+    // PUT api/v1/condominios/{condominioId}/blocos/{blocoId}
+    [HttpPut("{condominioId:guid}/blocos/{blocoId:guid}")]
+    public async Task<IActionResult> UpdateBloco(
+        Guid condominioId, Guid blocoId, [FromBody] UpdateBlocoRequest request)
+    {
+        var sindicoId = await GetSindicoScopeIdAsync();
+        var data = await _service.UpdateBlocoAsync(condominioId, blocoId, request, sindicoId);
+        return Ok(ApiResponse<object>.Ok(data));
+    }
+
+    // PUT api/v1/condominios/{condominioId}/blocos/{blocoId}/unidades/{unidadeId}
+    [HttpPut("{condominioId:guid}/blocos/{blocoId:guid}/unidades/{unidadeId:guid}")]
+    public async Task<IActionResult> UpdateUnidade(
+        Guid condominioId, Guid blocoId, Guid unidadeId, [FromBody] UpdateUnidadeRequest request)
+    {
+        var sindicoId = await GetSindicoScopeIdAsync();
+        var data = await _service.UpdateUnidadeAsync(condominioId, blocoId, unidadeId, request, sindicoId);
+        return Ok(ApiResponse<object>.Ok(data));
+    }
+
+    // DELETE api/v1/condominios/{condominioId}/blocos/{blocoId}/unidades/{unidadeId}
+    [HttpDelete("{condominioId:guid}/blocos/{blocoId:guid}/unidades/{unidadeId:guid}")]
+    public async Task<IActionResult> DeleteUnidade(Guid condominioId, Guid blocoId, Guid unidadeId)
+    {
+        var sindicoId = await GetSindicoScopeIdAsync();
+        try
+        {
+            await _service.DeleteUnidadeAsync(condominioId, blocoId, unidadeId, sindicoId);
+            return Ok(ApiResponse<object?>.Ok(null, "Unidade removida com sucesso"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
+    }
 }

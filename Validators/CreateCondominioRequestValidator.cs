@@ -41,3 +41,23 @@ public class CreateUnidadeRequestValidator : AbstractValidator<CreateUnidadeRequ
             .MaximumLength(20).WithMessage("Número deve ter no máximo 20 caracteres");
     }
 }
+
+public class UpdateBlocoRequestValidator : AbstractValidator<UpdateBlocoRequest>
+{
+    public UpdateBlocoRequestValidator()
+    {
+        RuleFor(x => x.Nome)
+            .NotEmpty().WithMessage("Nome do bloco é obrigatório")
+            .MaximumLength(100).WithMessage("Nome deve ter no máximo 100 caracteres");
+    }
+}
+
+public class UpdateUnidadeRequestValidator : AbstractValidator<UpdateUnidadeRequest>
+{
+    public UpdateUnidadeRequestValidator()
+    {
+        RuleFor(x => x.Numero)
+            .NotEmpty().WithMessage("Número da unidade é obrigatório")
+            .MaximumLength(20).WithMessage("Número deve ter no máximo 20 caracteres");
+    }
+}
