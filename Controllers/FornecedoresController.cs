@@ -1,0 +1,72 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using SindiCore.API.DTOs.Requests;
+using SindiCore.API.Helpers;
+using SindiCore.API.Services.Interfaces;
+
+namespace SindiCore.API.Controllers;
+
+[Authorize]
+[ApiController]
+[Route("api/v1/fornecedores")]
+public class FornecedoresController : ControllerBase
+{
+    private readonly IFornecedorService _service;
+
+    public FornecedoresController(IFornecedorService service)
+    {
+        _service = service;
+    }
+
+    // GET api/v1/fornecedores?search=&page=&pageSize=
+    [HttpGet]
+    public async Task<IActionResult> GetAll([FromQuery] FornecedorQueryParams queryParams)
+    {
+        var sindicoId = User.GetUserId();
+        var data = await _service.GetAllAsync(sindicoId, queryParams);
+        return Ok(data);
+    }
+
+    // GET api/v1/fornecedores/{id}
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetById(Guid id)
+    {
+        var sindicoId = User.GetUserId();
+        var data = await _service.GetByIdAsync(id, sindicoId);
+        return Ok(ApiResponse<object>.Ok(data));
+    }
+
+    // POST api/v1/fornecedores
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] CreateFornecedorRequest request)
+    {
+        var sindicoId = User.GetUserId();
+        var data = await _service.CreateAsync(request, sindicoId);
+        return StatusCode(201, ApiResponse<object>.Ok(data, "Fornecedor criado com sucesso"));
+    }
+
+    // PUT api/v1/fornecedores/{id}
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] CreateFornecedorRequest request)
+    {
+        var sindicoId = User.GetUserId();
+        var data = await _service.UpdateAsync(id, request, sindicoId);
+        return Ok(ApiResponse<object>.Ok(data));
+    }
+
+    // DELETE api/v1/fornecedores/{id}
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var sindicoId = User.GetUserId();
+        try
+        {
+            await _service.DeleteAsync(id, sindicoId);
+            return Ok(ApiResponse<object?>.Ok(null, "Fornecedor removido com sucesso"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
+    }
+}
