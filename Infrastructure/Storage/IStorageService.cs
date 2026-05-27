@@ -1,4 +1,4 @@
-namespace SindiCore.API.Infrastructure.Storage;
+namespace SindiOps.API.Infrastructure.Storage;
 
 public interface IStorageService
 {

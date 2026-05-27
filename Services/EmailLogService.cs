@@ -1,19 +1,19 @@
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
-using SindiCore.API.DTOs.Requests;
-using SindiCore.API.DTOs.Responses;
-using SindiCore.API.Helpers;
-using SindiCore.API.Infrastructure.Data;
-using SindiCore.API.Services.Interfaces;
+using SindiOps.API.DTOs.Requests;
+using SindiOps.API.DTOs.Responses;
+using SindiOps.API.Helpers;
+using SindiOps.API.Infrastructure.Data;
+using SindiOps.API.Services.Interfaces;
 
-namespace SindiCore.API.Services;
+namespace SindiOps.API.Services;
 
 public class EmailLogService : IEmailLogService
 {
-    private readonly SindiCoreDbContext _db;
+    private readonly SindiOpsDbContext _db;
     private readonly IMapper _mapper;
 
-    public EmailLogService(SindiCoreDbContext db, IMapper mapper)
+    public EmailLogService(SindiOpsDbContext db, IMapper mapper)
     {
         _db = db;
         _mapper = mapper;

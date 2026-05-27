@@ -1,8 +1,8 @@
-using SindiCore.API.DTOs.Requests;
-using SindiCore.API.DTOs.Responses;
-using SindiCore.API.Helpers;
+using SindiOps.API.DTOs.Requests;
+using SindiOps.API.DTOs.Responses;
+using SindiOps.API.Helpers;
 
-namespace SindiCore.API.Services.Interfaces;
+namespace SindiOps.API.Services.Interfaces;
 
 public interface IMoradorService
 {

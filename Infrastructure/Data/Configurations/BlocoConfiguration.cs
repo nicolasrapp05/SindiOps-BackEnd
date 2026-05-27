@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SindiCore.API.Entities;
+using SindiOps.API.Entities;
 
-namespace SindiCore.API.Infrastructure.Data.Configurations;
+namespace SindiOps.API.Infrastructure.Data.Configurations;
 
 public class BlocoConfiguration : IEntityTypeConfiguration<Bloco>
 {

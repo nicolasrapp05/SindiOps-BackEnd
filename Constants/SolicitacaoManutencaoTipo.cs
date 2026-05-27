@@ -1,4 +1,4 @@
-namespace SindiCore.API.Constants;
+namespace SindiOps.API.Constants;
 
 /// <summary>Valores de tipo de serviço alinhados ao CHECK em <c>solicitacoes_manutencao.tipo</c>.</summary>
 public static class SolicitacaoManutencaoTipo

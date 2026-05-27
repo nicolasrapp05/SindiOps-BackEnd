@@ -1,4 +1,4 @@
-namespace SindiCore.API.DTOs.Requests;
+namespace SindiOps.API.DTOs.Requests;
 
 public class CreateCondominioRequest
 {

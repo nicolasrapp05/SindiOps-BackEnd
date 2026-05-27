@@ -1,12 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SindiCore.API.DTOs.Requests;
-using SindiCore.API.Helpers;
-using SindiCore.API.Infrastructure.Data;
-using SindiCore.API.Services;
-using SindiCore.API.Services.Interfaces;
+using SindiOps.API.DTOs.Requests;
+using SindiOps.API.Helpers;
+using SindiOps.API.Infrastructure.Data;
+using SindiOps.API.Services;
+using SindiOps.API.Services.Interfaces;
 
-namespace SindiCore.API.Controllers;
+namespace SindiOps.API.Controllers;
 
 [Authorize]
 [ApiController]
@@ -14,9 +14,9 @@ namespace SindiCore.API.Controllers;
 public class CondominiosController : ControllerBase
 {
     private readonly ICondominioService _service;
-    private readonly SindiCoreDbContext _db;
+    private readonly SindiOpsDbContext _db;
 
-    public CondominiosController(ICondominioService service, SindiCoreDbContext db)
+    public CondominiosController(ICondominioService service, SindiOpsDbContext db)
     {
         _service = service;
         _db = db;

@@ -1,4 +1,4 @@
-namespace SindiCore.API.Infrastructure.Reports;
+namespace SindiOps.API.Infrastructure.Reports;
 
 /// <summary>Dados tabulares normalizados para geração de PDF, Excel ou Word.</summary>
 public sealed class ReportDocumentModel

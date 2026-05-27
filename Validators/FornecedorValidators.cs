@@ -1,8 +1,8 @@
 using System.Text.RegularExpressions;
 using FluentValidation;
-using SindiCore.API.DTOs.Requests;
+using SindiOps.API.DTOs.Requests;
 
-namespace SindiCore.API.Validators;
+namespace SindiOps.API.Validators;
 
 public class CreateFornecedorRequestValidator : AbstractValidator<CreateFornecedorRequest>
 {

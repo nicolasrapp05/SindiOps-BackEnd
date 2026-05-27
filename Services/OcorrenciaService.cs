@@ -3,25 +3,25 @@ using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using SindiCore.API.Constants;
-using SindiCore.API.DTOs.Requests;
-using SindiCore.API.DTOs.Responses;
-using SindiCore.API.Entities;
-using SindiCore.API.Helpers;
-using SindiCore.API.Infrastructure.Data;
-using SindiCore.API.Infrastructure.Storage;
-using SindiCore.API.Services.Interfaces;
+using SindiOps.API.Constants;
+using SindiOps.API.DTOs.Requests;
+using SindiOps.API.DTOs.Responses;
+using SindiOps.API.Entities;
+using SindiOps.API.Helpers;
+using SindiOps.API.Infrastructure.Data;
+using SindiOps.API.Infrastructure.Storage;
+using SindiOps.API.Services.Interfaces;
 
-namespace SindiCore.API.Services;
+namespace SindiOps.API.Services;
 
 public class OcorrenciaService : IOcorrenciaService
 {
-    private readonly SindiCoreDbContext _db;
+    private readonly SindiOpsDbContext _db;
     private readonly IMapper _mapper;
     private readonly IStorageService _storage;
 
     public OcorrenciaService(
-        SindiCoreDbContext db,
+        SindiOpsDbContext db,
         IMapper mapper,
         IStorageService storage)
     {

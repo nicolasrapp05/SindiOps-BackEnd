@@ -1,4 +1,4 @@
-namespace SindiCore.API.Infrastructure.Email;
+namespace SindiOps.API.Infrastructure.Email;
 
 public interface IEmailService
 {

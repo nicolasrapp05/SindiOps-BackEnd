@@ -1,6 +1,6 @@
-using SindiCore.API.Constants;
+using SindiOps.API.Constants;
 
-namespace SindiCore.API.Helpers;
+namespace SindiOps.API.Helpers;
 
 public static class ManutencaoStatusHelper
 {

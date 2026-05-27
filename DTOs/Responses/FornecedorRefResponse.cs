@@ -1,4 +1,4 @@
-namespace SindiCore.API.DTOs.Responses;
+namespace SindiOps.API.DTOs.Responses;
 
 /// <summary>Referência slim de fornecedor usada em respostas de contratos.</summary>
 public class FornecedorRefResponse

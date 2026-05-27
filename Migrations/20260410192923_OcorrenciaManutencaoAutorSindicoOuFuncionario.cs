@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace SindiCore.API.Migrations
+namespace SindiOps.API.Migrations
 {
     /// <inheritdoc />
     public partial class OcorrenciaManutencaoAutorSindicoOuFuncionario : Migration

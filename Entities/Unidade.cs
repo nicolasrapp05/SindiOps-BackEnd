@@ -1,4 +1,4 @@
-namespace SindiCore.API.Entities;
+namespace SindiOps.API.Entities;
 
 public class Unidade
 {

@@ -1,4 +1,4 @@
-namespace SindiCore.API.Infrastructure.Reports;
+namespace SindiOps.API.Infrastructure.Reports;
 
 public interface IReportGenerator
 {

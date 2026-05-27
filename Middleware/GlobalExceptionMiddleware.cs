@@ -1,9 +1,9 @@
 using System.Net;
 using System.Text.Json;
 using FluentValidation;
-using SindiCore.API.Helpers;
+using SindiOps.API.Helpers;
 
-namespace SindiCore.API.Middleware;
+namespace SindiOps.API.Middleware;
 
 public class GlobalExceptionMiddleware
 {

@@ -1,16 +1,16 @@
 using Microsoft.EntityFrameworkCore;
-using SindiCore.API.Constants;
-using SindiCore.API.DTOs.Responses;
-using SindiCore.API.Infrastructure.Data;
-using SindiCore.API.Services.Interfaces;
+using SindiOps.API.Constants;
+using SindiOps.API.DTOs.Responses;
+using SindiOps.API.Infrastructure.Data;
+using SindiOps.API.Services.Interfaces;
 
-namespace SindiCore.API.Services;
+namespace SindiOps.API.Services;
 
 public class DashboardService : IDashboardService
 {
-    private readonly SindiCoreDbContext _db;
+    private readonly SindiOpsDbContext _db;
 
-    public DashboardService(SindiCoreDbContext db)
+    public DashboardService(SindiOpsDbContext db)
     {
         _db = db;
     }

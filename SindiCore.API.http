@@ -1,6 +1,0 @@
-@SindiCore.API_HostAddress = http://localhost:5265
-
-GET {{SindiCore.API_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

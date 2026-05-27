@@ -2,22 +2,22 @@ using AutoMapper;
 using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.EntityFrameworkCore;
-using SindiCore.API.Constants;
-using SindiCore.API.DTOs.Requests;
-using SindiCore.API.DTOs.Responses;
-using SindiCore.API.Entities;
-using SindiCore.API.Helpers;
-using SindiCore.API.Infrastructure.Data;
-using SindiCore.API.Services.Interfaces;
+using SindiOps.API.Constants;
+using SindiOps.API.DTOs.Requests;
+using SindiOps.API.DTOs.Responses;
+using SindiOps.API.Entities;
+using SindiOps.API.Helpers;
+using SindiOps.API.Infrastructure.Data;
+using SindiOps.API.Services.Interfaces;
 
-namespace SindiCore.API.Services;
+namespace SindiOps.API.Services;
 
 public class ManutencaoObrigatoriaService : IManutencaoObrigatoriaService
 {
-    private readonly SindiCoreDbContext _db;
+    private readonly SindiOpsDbContext _db;
     private readonly IMapper _mapper;
 
-    public ManutencaoObrigatoriaService(SindiCoreDbContext db, IMapper mapper)
+    public ManutencaoObrigatoriaService(SindiOpsDbContext db, IMapper mapper)
     {
         _db = db;
         _mapper = mapper;

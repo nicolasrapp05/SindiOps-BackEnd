@@ -1,6 +1,6 @@
 using System.Security.Claims;
 
-namespace SindiCore.API.Helpers;
+namespace SindiOps.API.Helpers;
 
 public static class ClaimsExtensions
 {

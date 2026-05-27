@@ -1,6 +1,6 @@
-using SindiCore.API.Constants;
+using SindiOps.API.Constants;
 
-namespace SindiCore.API.Entities;
+namespace SindiOps.API.Entities;
 
 public class Ocorrencia
 {

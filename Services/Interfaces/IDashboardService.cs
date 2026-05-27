@@ -1,6 +1,6 @@
-using SindiCore.API.DTOs.Responses;
+using SindiOps.API.DTOs.Responses;
 
-namespace SindiCore.API.Services.Interfaces;
+namespace SindiOps.API.Services.Interfaces;
 
 public interface IDashboardService
 {

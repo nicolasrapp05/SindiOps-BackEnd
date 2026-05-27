@@ -1,8 +1,8 @@
 using AutoMapper;
-using SindiCore.API.DTOs.Responses;
-using SindiCore.API.Entities;
+using SindiOps.API.DTOs.Responses;
+using SindiOps.API.Entities;
 
-namespace SindiCore.API.Mappings;
+namespace SindiOps.API.Mappings;
 
 public class SolicitacaoCompraProfile : Profile
 {

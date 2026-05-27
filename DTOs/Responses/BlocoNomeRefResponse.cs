@@ -1,4 +1,4 @@
-namespace SindiCore.API.DTOs.Responses;
+namespace SindiOps.API.DTOs.Responses;
 
 public class BlocoNomeRefResponse
 {

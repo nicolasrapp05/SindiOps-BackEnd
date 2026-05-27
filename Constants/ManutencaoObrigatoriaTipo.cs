@@ -1,4 +1,4 @@
-namespace SindiCore.API.Constants;
+namespace SindiOps.API.Constants;
 
 /// <summary>Valores de <c>tipo</c> alinhados ao CHECK em <c>manutencoes_obrigatorias</c> (schema).</summary>
 public static class ManutencaoObrigatoriaTipo

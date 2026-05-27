@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SindiCore.API.DTOs.Requests;
-using SindiCore.API.Helpers;
-using SindiCore.API.Services.Interfaces;
+using SindiOps.API.DTOs.Requests;
+using SindiOps.API.Helpers;
+using SindiOps.API.Services.Interfaces;
 
-namespace SindiCore.API.Controllers;
+namespace SindiOps.API.Controllers;
 
 [Authorize]
 [ApiController]

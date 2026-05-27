@@ -6,19 +6,19 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Resend;
-using SindiCore.API.Infrastructure.BackgroundJobs;
-using SindiCore.API.Infrastructure.Data;
-using SindiCore.API.Infrastructure.Email;
-using SindiCore.API.Infrastructure.Reports;
-using SindiCore.API.Infrastructure.Storage;
-using SindiCore.API.Middleware;
-using SindiCore.API.Services;
-using SindiCore.API.Services.Interfaces;
+using SindiOps.API.Infrastructure.BackgroundJobs;
+using SindiOps.API.Infrastructure.Data;
+using SindiOps.API.Infrastructure.Email;
+using SindiOps.API.Infrastructure.Reports;
+using SindiOps.API.Infrastructure.Storage;
+using SindiOps.API.Middleware;
+using SindiOps.API.Services;
+using SindiOps.API.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ── DbContext ────────────────────────────────────────────────────────────────
-builder.Services.AddDbContext<SindiCoreDbContext>(options =>
+builder.Services.AddDbContext<SindiOpsDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // ── AutoMapper ───────────────────────────────────────────────────────────────

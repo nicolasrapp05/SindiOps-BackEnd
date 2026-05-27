@@ -1,9 +1,9 @@
 using System.Text.RegularExpressions;
 using FluentValidation;
 using FluentValidation.Results;
-using SindiCore.API.Services.Interfaces;
+using SindiOps.API.Services.Interfaces;
 
-namespace SindiCore.API.Services;
+namespace SindiOps.API.Services;
 
 public class TemplateResolver : ITemplateResolver
 {

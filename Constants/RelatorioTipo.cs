@@ -1,4 +1,4 @@
-namespace SindiCore.API.Constants;
+namespace SindiOps.API.Constants;
 
 public static class RelatorioTipo
 {

@@ -1,4 +1,4 @@
-namespace SindiCore.API.DTOs.Responses;
+namespace SindiOps.API.DTOs.Responses;
 
 /// <summary>Referência simplificada de bloco (sem lista de unidades) usada em respostas aninhadas.</summary>
 public class BlocoRefResponse

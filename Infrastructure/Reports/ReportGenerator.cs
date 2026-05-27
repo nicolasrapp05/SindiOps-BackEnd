@@ -4,9 +4,9 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using ClosedXML.Excel;
-using SindiCore.API.Constants;
+using SindiOps.API.Constants;
 
-namespace SindiCore.API.Infrastructure.Reports;
+namespace SindiOps.API.Infrastructure.Reports;
 
 public class ReportGenerator : IReportGenerator
 {

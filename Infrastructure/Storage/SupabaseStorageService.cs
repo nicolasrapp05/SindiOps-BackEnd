@@ -4,7 +4,7 @@ using System.Text.Json;
 using FluentValidation;
 using FluentValidation.Results;
 
-namespace SindiCore.API.Infrastructure.Storage;
+namespace SindiOps.API.Infrastructure.Storage;
 
 public class SupabaseStorageService : IStorageService
 {

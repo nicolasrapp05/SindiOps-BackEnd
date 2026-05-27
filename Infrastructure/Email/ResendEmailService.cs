@@ -1,6 +1,6 @@
 using Resend;
 
-namespace SindiCore.API.Infrastructure.Email;
+namespace SindiOps.API.Infrastructure.Email;
 
 public class ResendEmailService : IEmailService
 {

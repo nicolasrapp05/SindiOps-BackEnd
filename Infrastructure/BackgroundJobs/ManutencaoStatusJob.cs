@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using SindiCore.API.Constants;
-using SindiCore.API.Infrastructure.Data;
+using SindiOps.API.Constants;
+using SindiOps.API.Infrastructure.Data;
 
-namespace SindiCore.API.Infrastructure.BackgroundJobs;
+namespace SindiOps.API.Infrastructure.BackgroundJobs;
 
 public class ManutencaoStatusJob : IHostedService, IDisposable
 {
@@ -50,7 +50,7 @@ public class ManutencaoStatusJob : IHostedService, IDisposable
         try
         {
             using var scope = _serviceProvider.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<SindiCoreDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<SindiOpsDbContext>();
 
             var hoje = DateOnly.FromDateTime(DateTime.UtcNow);
             var limiteUpcoming = hoje.AddDays(30);

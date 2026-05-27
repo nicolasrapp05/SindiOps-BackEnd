@@ -1,19 +1,19 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
-using SindiCore.API.Constants;
-using SindiCore.API.DTOs.Requests;
-using SindiCore.API.Infrastructure.Data;
-using SindiCore.API.Infrastructure.Reports;
-using SindiCore.API.Services.Interfaces;
+using SindiOps.API.Constants;
+using SindiOps.API.DTOs.Requests;
+using SindiOps.API.Infrastructure.Data;
+using SindiOps.API.Infrastructure.Reports;
+using SindiOps.API.Services.Interfaces;
 
-namespace SindiCore.API.Services;
+namespace SindiOps.API.Services;
 
 public class RelatorioService : IRelatorioService
 {
-    private readonly SindiCoreDbContext _db;
+    private readonly SindiOpsDbContext _db;
     private readonly IReportGenerator _reportGenerator;
 
-    public RelatorioService(SindiCoreDbContext db, IReportGenerator reportGenerator)
+    public RelatorioService(SindiOpsDbContext db, IReportGenerator reportGenerator)
     {
         _db = db;
         _reportGenerator = reportGenerator;

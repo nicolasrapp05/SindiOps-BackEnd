@@ -1,8 +1,8 @@
-using SindiCore.API.Constants;
-using SindiCore.API.Helpers;
-using SindiCore.API.Services.Interfaces;
+using SindiOps.API.Constants;
+using SindiOps.API.Helpers;
+using SindiOps.API.Services.Interfaces;
 
-namespace SindiCore.API.Services;
+namespace SindiOps.API.Services;
 
 public class CurrentUserService : ICurrentUserService
 {

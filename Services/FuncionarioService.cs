@@ -5,18 +5,18 @@ using AutoMapper;
 using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.EntityFrameworkCore;
-using SindiCore.API.DTOs.Requests;
-using SindiCore.API.DTOs.Responses;
-using SindiCore.API.Entities;
-using SindiCore.API.Infrastructure.Data;
-using SindiCore.API.Infrastructure.Email;
-using SindiCore.API.Services.Interfaces;
+using SindiOps.API.DTOs.Requests;
+using SindiOps.API.DTOs.Responses;
+using SindiOps.API.Entities;
+using SindiOps.API.Infrastructure.Data;
+using SindiOps.API.Infrastructure.Email;
+using SindiOps.API.Services.Interfaces;
 
-namespace SindiCore.API.Services;
+namespace SindiOps.API.Services;
 
 public class FuncionarioService : IFuncionarioService
 {
-    private readonly SindiCoreDbContext _db;
+    private readonly SindiOpsDbContext _db;
     private readonly IMapper _mapper;
     private readonly IEmailService _emailService;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -24,7 +24,7 @@ public class FuncionarioService : IFuncionarioService
     private readonly ILogger<FuncionarioService> _logger;
 
     public FuncionarioService(
-        SindiCoreDbContext db,
+        SindiOpsDbContext db,
         IMapper mapper,
         IEmailService emailService,
         IHttpClientFactory httpClientFactory,
@@ -179,7 +179,7 @@ public class FuncionarioService : IFuncionarioService
 
     private async Task<bool> EnviarConviteAsync(string nome, string email)
     {
-        var frontendUrl = _configuration["Cors:AllowedOrigin"] ?? "https://app.sindicore.com.br";
+        var frontendUrl = _configuration["Cors:AllowedOrigin"] ?? "https://app.sindiops.com.br";
         var htmlBody = $"""
             <h2>Bem-vindo ao SíndiCore!</h2>
             <p>Olá, <strong>{nome}</strong>.</p>

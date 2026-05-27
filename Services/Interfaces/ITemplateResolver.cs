@@ -1,4 +1,4 @@
-namespace SindiCore.API.Services.Interfaces;
+namespace SindiOps.API.Services.Interfaces;
 
 public interface ITemplateResolver
 {

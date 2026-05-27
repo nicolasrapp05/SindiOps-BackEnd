@@ -1,4 +1,4 @@
-namespace SindiCore.API.Constants;
+namespace SindiOps.API.Constants;
 
 /// <summary>Valores de <c>categoria</c> conforme CHECK em <c>solicitacoes_compra</c>.</summary>
 public static class SolicitacaoCompraCategoria

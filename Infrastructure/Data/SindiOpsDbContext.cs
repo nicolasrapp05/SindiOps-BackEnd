@@ -1,11 +1,11 @@
 using Microsoft.EntityFrameworkCore;
-using SindiCore.API.Entities;
+using SindiOps.API.Entities;
 
-namespace SindiCore.API.Infrastructure.Data;
+namespace SindiOps.API.Infrastructure.Data;
 
-public class SindiCoreDbContext : DbContext
+public class SindiOpsDbContext : DbContext
 {
-    public SindiCoreDbContext(DbContextOptions<SindiCoreDbContext> options) : base(options) { }
+    public SindiOpsDbContext(DbContextOptions<SindiOpsDbContext> options) : base(options) { }
 
     public DbSet<Sindico> Sindicos => Set<Sindico>();
     public DbSet<Funcionario> Funcionarios => Set<Funcionario>();
@@ -29,7 +29,7 @@ public class SindiCoreDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(SindiCoreDbContext).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(SindiOpsDbContext).Assembly);
 
         modelBuilder.Entity<Morador>()
             .HasQueryFilter(m => m.DeletadoEm == null);

@@ -1,4 +1,4 @@
-namespace SindiCore.API.Helpers;
+namespace SindiOps.API.Helpers;
 
 public class ApiResponse<T>
 {
