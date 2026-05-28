@@ -7,4 +7,5 @@ public class EnviarComunicacaoRequest
     public string AssuntoEditado { get; set; } = string.Empty;
     public string CorpoEditado { get; set; } = string.Empty;
     public decimal? ValorMulta { get; set; }
+    public string? PrazoResposta { get; set; }
 }

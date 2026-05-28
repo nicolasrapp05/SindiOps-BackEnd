@@ -1,3 +1,4 @@
+using System.Globalization;
 using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.EntityFrameworkCore;
@@ -60,7 +61,7 @@ public class ComunicacaoService : IComunicacaoService
         var sindico = await _db.Sindicos.FirstOrDefaultAsync(s => s.Id == sindicoId)
             ?? throw new KeyNotFoundException("Síndico não encontrado");
 
-        var valores = MontarVariaveisTemplate(ocorrencia, morador, sindico, request.ValorMulta);
+        var valores = MontarVariaveisTemplate(ocorrencia, morador, sindico, request.ValorMulta, request.PrazoResposta);
 
         var assunto = _templateResolver.Resolve(request.AssuntoEditado, valores, nameof(EnviarComunicacaoRequest.AssuntoEditado));
         var corpo = _templateResolver.Resolve(request.CorpoEditado, valores, nameof(EnviarComunicacaoRequest.CorpoEditado));
@@ -105,10 +106,17 @@ public class ComunicacaoService : IComunicacaoService
     }
 
     private static Dictionary<string, string> MontarVariaveisTemplate(
-        Ocorrencia ocorrencia, Morador morador, Sindico sindico, decimal? valorMulta)
+        Ocorrencia ocorrencia, Morador morador, Sindico sindico, decimal? valorMulta, string? prazoResposta)
     {
         var unidadeNum = morador.Unidade?.Numero ?? string.Empty;
         var blocoNome = morador.Bloco?.Nome ?? string.Empty;
+
+        var prazoFormatado = string.Empty;
+        if (!string.IsNullOrWhiteSpace(prazoResposta)
+            && DateOnly.TryParse(prazoResposta, CultureInfo.InvariantCulture, out var prazoDate))
+        {
+            prazoFormatado = prazoDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+        }
 
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -116,13 +124,13 @@ public class ComunicacaoService : IComunicacaoService
             ["unidade"] = unidadeNum,
             ["bloco"] = blocoNome,
             ["condominio"] = ocorrencia.Condominio.Nome,
-            ["data_ocorrencia"] = ocorrencia.OcorreuEm.ToString("dd/MM/yyyy HH:mm") + " UTC",
+            ["data_ocorrencia"] = ocorrencia.OcorreuEm.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) + " UTC",
             ["descricao_ocorrencia"] = ocorrencia.Descricao,
             ["tipo_ocorrencia"] = ocorrencia.TipoOcorrencia,
             ["nome_sindico"] = sindico.Nome,
-            ["data_envio"] = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm") + " UTC",
-            ["valor_multa"] = valorMulta.HasValue ? valorMulta.Value.ToString("F2") : string.Empty,
-            ["prazo_resposta"] = string.Empty
+            ["data_envio"] = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) + " UTC",
+            ["valor_multa"] = valorMulta.HasValue ? valorMulta.Value.ToString("F2", CultureInfo.InvariantCulture) : string.Empty,
+            ["prazo_resposta"] = prazoFormatado
         };
     }
 }

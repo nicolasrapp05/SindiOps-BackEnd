@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text;
 using FluentValidation;
 using FluentValidation.AspNetCore;
@@ -62,7 +62,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new() { Title = "SíndiCore API", Version = "v1" });
+    c.SwaggerDoc("v1", new() { Title = "SíndiOps API", Version = "v1" });
 });
 
 // ── HttpContextAccessor ───────────────────────────────────────────────────────
@@ -115,7 +115,7 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "SíndiCore API v1"));
+    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "SíndiOps API v1"));
 }
 
 app.UseMiddleware<GlobalExceptionMiddleware>();

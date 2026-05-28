@@ -1,4 +1,4 @@
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using AutoMapper;
@@ -181,14 +181,14 @@ public class FuncionarioService : IFuncionarioService
     {
         var frontendUrl = _configuration["Cors:AllowedOrigin"] ?? "https://app.sindiops.com.br";
         var htmlBody = $"""
-            <h2>Bem-vindo ao SíndiCore!</h2>
+            <h2>Bem-vindo ao SíndiOps!</h2>
             <p>Olá, <strong>{nome}</strong>.</p>
-            <p>Você foi cadastrado como funcionário na plataforma SíndiCore.</p>
+            <p>Você foi cadastrado como funcionário na plataforma SíndiOps.</p>
             <p>Clique no link abaixo para definir sua senha e acessar o sistema:</p>
             <p><a href="{frontendUrl}/primeiro-acesso">Definir minha senha</a></p>
             <p>Se você não reconhece este email, ignore esta mensagem.</p>
             """;
 
-        return await _emailService.SendAsync(email, "Seu acesso ao SíndiCore está pronto", htmlBody);
+        return await _emailService.SendAsync(email, "Seu acesso ao SíndiOps está pronto", htmlBody);
     }
 }
