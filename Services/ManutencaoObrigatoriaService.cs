@@ -43,6 +43,14 @@ public class ManutencaoObrigatoriaService : IManutencaoObrigatoriaService
             .Include(m => m.Condominio)
             .Where(m => m.CondominioId == q.CondominioId);
 
+        if (!string.IsNullOrWhiteSpace(q.Search))
+        {
+            var term = q.Search.Trim().ToLower();
+            query = query.Where(m =>
+                (m.Observacoes != null && m.Observacoes.ToLower().Contains(term)) ||
+                m.Tipo.ToLower().Contains(term));
+        }
+
         if (!string.IsNullOrWhiteSpace(q.Status))
             query = query.Where(m => m.Status == q.Status);
 

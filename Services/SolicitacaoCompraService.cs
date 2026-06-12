@@ -45,6 +45,14 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
             .Include(s => s.AprovadoPor)
             .Where(s => s.CondominioId == q.CondominioId);
 
+        if (!string.IsNullOrWhiteSpace(q.Search))
+        {
+            var term = q.Search.Trim().ToLower();
+            query = query.Where(s =>
+                s.Item.ToLower().Contains(term) ||
+                (s.Justificativa != null && s.Justificativa.ToLower().Contains(term)));
+        }
+
         if (!string.IsNullOrWhiteSpace(q.Status))
             query = query.Where(s => s.Status == q.Status);
 

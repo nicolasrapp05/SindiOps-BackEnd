@@ -33,6 +33,14 @@ public class ContratoService : IContratoService
         if (!string.IsNullOrWhiteSpace(q.Status))
             query = query.Where(c => c.Status == q.Status);
 
+        if (!string.IsNullOrWhiteSpace(q.Search))
+        {
+            var term = q.Search.Trim().ToLower();
+            query = query.Where(c =>
+                c.Fornecedor.Nome.ToLower().Contains(term) ||
+                c.TipoServico.ToLower().Contains(term));
+        }
+
         var totalCount = await query.CountAsync();
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);

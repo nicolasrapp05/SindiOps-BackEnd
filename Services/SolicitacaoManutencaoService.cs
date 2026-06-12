@@ -45,6 +45,15 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
             .Include(s => s.SolicitadoPorSindico)
             .Where(s => s.CondominioId == q.CondominioId);
 
+        if (!string.IsNullOrWhiteSpace(q.Search))
+        {
+            var term = q.Search.Trim().ToLower();
+            query = query.Where(s =>
+                s.Local.ToLower().Contains(term) ||
+                (s.Descricao != null && s.Descricao.ToLower().Contains(term)) ||
+                (s.Fornecedor != null && s.Fornecedor.Nome.ToLower().Contains(term)));
+        }
+
         if (!string.IsNullOrWhiteSpace(q.Status))
             query = query.Where(s => s.Status == q.Status);
 

@@ -3,6 +3,7 @@ namespace SindiOps.API.DTOs.Requests;
 public class OcorrenciaQueryParams
 {
     public Guid CondominioId { get; set; }
+    public string? Search { get; set; }
     public string? Status { get; set; }
     public string? Origem { get; set; }
     public string? TipoOcorrencia { get; set; }

@@ -54,6 +54,14 @@ public class OcorrenciaService : IOcorrenciaService
             .Include(o => o.Midias)
             .Where(o => o.CondominioId == q.CondominioId);
 
+        if (!string.IsNullOrWhiteSpace(q.Search))
+        {
+            var term = q.Search.Trim().ToLower();
+            query = query.Where(o =>
+                o.Descricao.ToLower().Contains(term) ||
+                o.TipoOcorrencia.ToLower().Contains(term));
+        }
+
         if (!string.IsNullOrWhiteSpace(q.Status))
             query = query.Where(o => o.Status == q.Status);
 
