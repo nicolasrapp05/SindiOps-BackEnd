@@ -10,6 +10,7 @@ public class SupabaseStorageService : IStorageService
 {
     private readonly HttpClient _httpClient;
     private readonly string _baseUrl;
+    private readonly string _supabaseUrl;
     private readonly string _bucket;
 
     private static readonly HashSet<string> AllowedMimeTypes =
@@ -28,9 +29,10 @@ public class SupabaseStorageService : IStorageService
         _httpClient = httpClient;
         _bucket = configuration["Supabase:StorageBucket"]!;
 
-        var supabaseUrl = configuration["Supabase:Url"]!;
+        var supabaseUrl = configuration["Supabase:Url"]!.TrimEnd('/');
         var serviceRoleKey = configuration["Supabase:ServiceRoleKey"]!;
 
+        _supabaseUrl = supabaseUrl;
         _baseUrl = $"{supabaseUrl}/storage/v1";
         _httpClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", serviceRoleKey);
@@ -64,7 +66,20 @@ public class SupabaseStorageService : IStorageService
 
         var json = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(json);
-        return doc.RootElement.GetProperty("signedURL").GetString()!;
+        var signedPath = doc.RootElement.GetProperty("signedURL").GetString()!;
+
+        // O Supabase pode retornar três formatos distintos:
+        //   1. URL absoluta: "https://xxx.supabase.co/storage/v1/object/sign/..."  → usar como está
+        //   2. Relativo ao domínio: "/storage/v1/object/sign/..."                  → prefixar com supabaseUrl
+        //   3. Relativo ao base path: "/object/sign/..."                           → prefixar com _baseUrl (inclui /storage/v1)
+        if (signedPath.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            return signedPath;
+
+        if (signedPath.StartsWith("/storage/", StringComparison.OrdinalIgnoreCase))
+            return $"{_supabaseUrl}{signedPath}";
+
+        // caso /object/sign/... — relativo a /storage/v1
+        return $"{_baseUrl}{signedPath}";
     }
 
     public async Task DeleteAsync(string filePath)
