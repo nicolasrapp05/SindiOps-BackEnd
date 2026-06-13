@@ -10,11 +10,11 @@ public class FornecedorProfile : Profile
     {
         CreateMap<ServicoFornecedor, ServicoFornecedorResponse>();
 
-        CreateMap<Fornecedor, FornecedorResponse>();
+        CreateMap<Fornecedor, FornecedorResponse>()
+            .ForMember(d => d.Servicos, o => o.MapFrom(s => s.Servicos));
 
         CreateMap<Fornecedor, FornecedorDetalheResponse>()
-            .IncludeBase<Fornecedor, FornecedorResponse>()
-            .ForMember(d => d.Servicos, o => o.MapFrom(s => s.Servicos));
+            .IncludeBase<Fornecedor, FornecedorResponse>();
 
         CreateMap<Fornecedor, FornecedorRefResponse>();
     }

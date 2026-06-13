@@ -9,5 +9,4 @@ public class FornecedorDetalheResponse : FornecedorResponse
     public string? EnderecoCep { get; set; }
     public string? Instagram { get; set; }
     public string? Website { get; set; }
-    public List<ServicoFornecedorResponse> Servicos { get; set; } = [];
 }

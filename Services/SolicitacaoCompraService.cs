@@ -43,6 +43,7 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
             .Include(s => s.SolicitadoPorFuncionario)
             .Include(s => s.SolicitadoPorSindico)
             .Include(s => s.AprovadoPor)
+            .Include(s => s.Cotacoes)
             .Where(s => s.CondominioId == q.CondominioId);
 
         if (!string.IsNullOrWhiteSpace(q.Search))
@@ -212,12 +213,34 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
             .FirstOrDefaultAsync(s => s.Id == id && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 
+        if (!TransicaoStatusPermitida(entity.Status, request.Status))
+            throw new ValidationException(new[]
+            {
+                new ValidationFailure("status", $"Transição de status inválida: {entity.Status} → {request.Status}")
+            });
+
         entity.Status = request.Status;
         entity.AtualizadoEm = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
 
         return _mapper.Map<SolicitacaoCompraResponse>(entity);
+    }
+
+    private static bool TransicaoStatusPermitida(string atual, string novo)
+    {
+        if (atual == novo)
+            return true;
+
+        return (atual, novo) switch
+        {
+            (SolicitacaoStatus.Nova, SolicitacaoStatus.EmAndamento) => true,
+            (SolicitacaoStatus.Nova, SolicitacaoStatus.Cancelada) => true,
+            (SolicitacaoStatus.Cancelada, SolicitacaoStatus.EmAndamento) => true,
+            (SolicitacaoStatus.EmAndamento, SolicitacaoStatus.Finalizada) => true,
+            (SolicitacaoStatus.EmAndamento, SolicitacaoStatus.Cancelada) => true,
+            _ => false
+        };
     }
 
     public async Task<List<CotacaoResponse>> GetCotacoesAsync(Guid solicitacaoId, Guid userId)

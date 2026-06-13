@@ -8,5 +8,6 @@ public class FornecedorResponse
     public string? Telefone { get; set; }
     public string? Email { get; set; }
     public string? NomeContato { get; set; }
+    public List<ServicoFornecedorResponse> Servicos { get; set; } = [];
     public DateTime CriadoEm { get; set; }
 }

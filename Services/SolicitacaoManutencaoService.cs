@@ -199,6 +199,12 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
             .FirstOrDefaultAsync(s => s.Id == id && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 
+        if (!TransicaoStatusPermitida(entity.Status, request.Status))
+            throw new ValidationException(new[]
+            {
+                new ValidationFailure("status", $"Transição de status inválida: {entity.Status} → {request.Status}")
+            });
+
         entity.Status = request.Status;
         if (request.Status == SolicitacaoStatus.Finalizada)
             entity.DataConclusao = request.DataConclusao;
@@ -210,5 +216,21 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
         await _db.SaveChangesAsync();
 
         return _mapper.Map<SolicitacaoManutencaoResponse>(entity);
+    }
+
+    private static bool TransicaoStatusPermitida(string atual, string novo)
+    {
+        if (atual == novo)
+            return true;
+
+        return (atual, novo) switch
+        {
+            (SolicitacaoStatus.Nova, SolicitacaoStatus.EmAndamento) => true,
+            (SolicitacaoStatus.Nova, SolicitacaoStatus.Cancelada) => true,
+            (SolicitacaoStatus.Cancelada, SolicitacaoStatus.EmAndamento) => true,
+            (SolicitacaoStatus.EmAndamento, SolicitacaoStatus.Finalizada) => true,
+            (SolicitacaoStatus.EmAndamento, SolicitacaoStatus.Cancelada) => true,
+            _ => false
+        };
     }
 }

@@ -30,6 +30,9 @@ public class ContratoService : IContratoService
         if (q.CondominioId.HasValue)
             query = query.Where(c => c.CondominioId == q.CondominioId.Value);
 
+        if (q.FornecedorId.HasValue)
+            query = query.Where(c => c.FornecedorId == q.FornecedorId.Value);
+
         if (!string.IsNullOrWhiteSpace(q.Status))
             query = query.Where(c => c.Status == q.Status);
 

@@ -48,8 +48,6 @@ public class FuncionarioService : IFuncionarioService
 
         if (ativo.HasValue)
             query = query.Where(f => f.Ativo == ativo.Value);
-        else
-            query = query.Where(f => f.Ativo);
 
         return _mapper.Map<List<FuncionarioResponse>>(
             await query.OrderBy(f => f.Nome).ToListAsync());

@@ -403,9 +403,9 @@ public class OcorrenciaService : IOcorrenciaService
         {
             (OcorrenciaStatus.Nova, OcorrenciaStatus.EmAndamento) => true,
             (OcorrenciaStatus.Nova, OcorrenciaStatus.Cancelada) => true,
+            (OcorrenciaStatus.Cancelada, OcorrenciaStatus.EmAndamento) => true,
             (OcorrenciaStatus.EmAndamento, OcorrenciaStatus.Finalizada) => true,
             (OcorrenciaStatus.EmAndamento, OcorrenciaStatus.Cancelada) => true,
-            (OcorrenciaStatus.EmAndamento, OcorrenciaStatus.Nova) => true,
             _ => false
         };
     }

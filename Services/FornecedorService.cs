@@ -25,7 +25,9 @@ public class FornecedorService : IFornecedorService
 
     public async Task<PaginatedResponse<FornecedorResponse>> GetAllAsync(Guid sindicoId, FornecedorQueryParams q)
     {
-        var query = _db.Fornecedores.Where(f => f.SindicoId == sindicoId);
+        var query = _db.Fornecedores
+            .Include(f => f.Servicos)
+            .Where(f => f.SindicoId == sindicoId);
 
         if (!string.IsNullOrWhiteSpace(q.Search))
         {
