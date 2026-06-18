@@ -66,8 +66,5 @@ public class CreateCotacaoRequestValidator : AbstractValidator<CreateCotacaoRequ
 
         RuleFor(x => x.ValorUnitario)
             .GreaterThan(0).WithMessage("ValorUnitario deve ser maior que zero");
-
-        RuleFor(x => x.ValorTotal)
-            .GreaterThan(0).WithMessage("ValorTotal deve ser maior que zero");
     }
 }

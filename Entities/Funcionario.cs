@@ -13,4 +13,5 @@ public class Funcionario
     public DateTime? AtualizadoEm { get; set; }
 
     public Sindico Sindico { get; set; } = null!;
+    public ICollection<FuncionarioCondominio> CondominiosAcesso { get; set; } = new List<FuncionarioCondominio>();
 }

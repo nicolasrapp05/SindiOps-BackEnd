@@ -9,4 +9,5 @@ public class FuncionarioResponse
     public bool Ativo { get; set; }
     public DateTime CriadoEm { get; set; }
     public bool? ConviteEnviado { get; set; }
+    public List<CondominioRefResponse> Condominios { get; set; } = [];
 }

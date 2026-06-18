@@ -32,8 +32,9 @@ public class CondominiosController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
+        var userId = User.GetUserId();
         var sindicoId = await GetSindicoScopeIdAsync();
-        var data = await _service.GetAllAsync(sindicoId);
+        var data = await _service.GetAllAsync(sindicoId, userId);
         return Ok(ApiResponse<object>.Ok(data));
     }
 
@@ -41,8 +42,9 @@ public class CondominiosController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
+        var userId = User.GetUserId();
         var sindicoId = await GetSindicoScopeIdAsync();
-        var data = await _service.GetByIdAsync(id, sindicoId);
+        var data = await _service.GetByIdAsync(id, sindicoId, userId);
         return Ok(ApiResponse<object>.Ok(data));
     }
 

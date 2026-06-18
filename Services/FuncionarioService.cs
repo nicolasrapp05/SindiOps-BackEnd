@@ -1,9 +1,9 @@
-﻿using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
-using AutoMapper;
+﻿using AutoMapper;
 using FluentValidation;
 using FluentValidation.Results;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using SindiOps.API.DTOs.Requests;
 using SindiOps.API.DTOs.Responses;
@@ -41,7 +41,10 @@ public class FuncionarioService : IFuncionarioService
 
     public async Task<List<FuncionarioResponse>> GetAllAsync(Guid sindicoId, string? cargo, bool? ativo)
     {
-        var query = _db.Funcionarios.Where(f => f.SindicoId == sindicoId);
+        var query = _db.Funcionarios
+            .Include(f => f.CondominiosAcesso)
+            .ThenInclude(fc => fc.Condominio)
+            .Where(f => f.SindicoId == sindicoId);
 
         if (!string.IsNullOrWhiteSpace(cargo))
             query = query.Where(f => f.Cargo == cargo);
@@ -56,6 +59,8 @@ public class FuncionarioService : IFuncionarioService
     public async Task<FuncionarioResponse> GetByIdAsync(Guid id, Guid sindicoId)
     {
         var funcionario = await _db.Funcionarios
+            .Include(f => f.CondominiosAcesso)
+            .ThenInclude(fc => fc.Condominio)
             .FirstOrDefaultAsync(f => f.Id == id && f.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Funcionário não encontrado");
 
@@ -71,13 +76,15 @@ public class FuncionarioService : IFuncionarioService
                 new ValidationFailure("email", "Email já cadastrado no sistema")
             });
 
+        await ValidarCondominiosDoSindicoAsync(request.CondominioIds, sindicoId);
+
         var funcionario = new Funcionario
         {
             SindicoId = sindicoId,
             Nome = request.Nome,
             Email = request.Email,
             Cargo = request.Cargo,
-            SenhaHash = string.Empty, // gerenciado pelo Supabase Auth
+            SenhaHash = string.Empty,
             Ativo = true,
             CriadoEm = DateTime.UtcNow
         };
@@ -85,13 +92,13 @@ public class FuncionarioService : IFuncionarioService
         _db.Funcionarios.Add(funcionario);
         await _db.SaveChangesAsync();
 
-        // cria usuário no Supabase Auth (admin API)
+        await SincronizarCondominiosAcessoAsync(funcionario.Id, request.CondominioIds);
+
         await CriarUsuarioSupabaseAsync(request.Email, request.Nome);
 
-        // envia email de convite
         var conviteEnviado = await EnviarConviteAsync(request.Nome, request.Email);
 
-        var response = _mapper.Map<FuncionarioResponse>(funcionario);
+        var response = await CarregarResponseAsync(funcionario.Id, sindicoId);
         response.ConviteEnviado = conviteEnviado;
         return response;
     }
@@ -102,13 +109,16 @@ public class FuncionarioService : IFuncionarioService
             .FirstOrDefaultAsync(f => f.Id == id && f.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Funcionário não encontrado");
 
+        await ValidarCondominiosDoSindicoAsync(request.CondominioIds, sindicoId);
+
         funcionario.Nome = request.Nome;
         funcionario.Cargo = request.Cargo;
         funcionario.AtualizadoEm = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
+        await SincronizarCondominiosAcessoAsync(funcionario.Id, request.CondominioIds);
 
-        return _mapper.Map<FuncionarioResponse>(funcionario);
+        return await CarregarResponseAsync(funcionario.Id, sindicoId);
     }
 
     public async Task AtivarAsync(Guid id, Guid sindicoId)
@@ -136,7 +146,62 @@ public class FuncionarioService : IFuncionarioService
         await _db.SaveChangesAsync();
     }
 
-    // ── helpers privados ────────────────────────────────────────────────────
+    private async Task ValidarCondominiosDoSindicoAsync(IReadOnlyCollection<Guid> condominioIds, Guid sindicoId)
+    {
+        var ids = condominioIds.Distinct().ToList();
+        if (ids.Count == 0)
+            throw new ValidationException(new[]
+            {
+                new ValidationFailure("condominioIds", "Selecione ao menos um condomínio")
+            });
+
+        var validos = await _db.Condominios
+            .Where(c => c.SindicoId == sindicoId && ids.Contains(c.Id))
+            .Select(c => c.Id)
+            .ToListAsync();
+
+        if (validos.Count != ids.Count)
+            throw new ValidationException(new[]
+            {
+                new ValidationFailure("condominioIds", "Um ou mais condomínios são inválidos para este síndico")
+            });
+    }
+
+    private async Task SincronizarCondominiosAcessoAsync(Guid funcionarioId, IReadOnlyCollection<Guid> condominioIds)
+    {
+        var ids = condominioIds.Distinct().ToHashSet();
+
+        var atuais = await _db.FuncionarioCondominios
+            .Where(fc => fc.FuncionarioId == funcionarioId)
+            .ToListAsync();
+
+        var remover = atuais.Where(fc => !ids.Contains(fc.CondominioId)).ToList();
+        if (remover.Count > 0)
+            _db.FuncionarioCondominios.RemoveRange(remover);
+
+        var existentes = atuais.Select(fc => fc.CondominioId).ToHashSet();
+        foreach (var condominioId in ids.Where(id => !existentes.Contains(id)))
+        {
+            _db.FuncionarioCondominios.Add(new FuncionarioCondominio
+            {
+                FuncionarioId = funcionarioId,
+                CondominioId = condominioId,
+                CriadoEm = DateTime.UtcNow,
+            });
+        }
+
+        await _db.SaveChangesAsync();
+    }
+
+    private async Task<FuncionarioResponse> CarregarResponseAsync(Guid funcionarioId, Guid sindicoId)
+    {
+        var funcionario = await _db.Funcionarios
+            .Include(f => f.CondominiosAcesso)
+            .ThenInclude(fc => fc.Condominio)
+            .FirstAsync(f => f.Id == funcionarioId && f.SindicoId == sindicoId);
+
+        return _mapper.Map<FuncionarioResponse>(funcionario);
+    }
 
     private async Task CriarUsuarioSupabaseAsync(string email, string nome)
     {
@@ -149,7 +214,7 @@ public class FuncionarioService : IFuncionarioService
             var body = JsonSerializer.Serialize(new
             {
                 email,
-                password = Guid.NewGuid().ToString("N") + "Aa1!", // senha temporária válida
+                password = Guid.NewGuid().ToString("N") + "Aa1!",
                 email_confirm = true,
                 user_metadata = new { full_name = nome }
             });

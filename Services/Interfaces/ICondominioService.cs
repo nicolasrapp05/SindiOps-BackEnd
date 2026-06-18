@@ -5,8 +5,8 @@ namespace SindiOps.API.Services.Interfaces;
 
 public interface ICondominioService
 {
-    Task<List<CondominioResponse>> GetAllAsync(Guid sindicoId);
-    Task<CondominioDetalheResponse> GetByIdAsync(Guid id, Guid sindicoId);
+    Task<List<CondominioResponse>> GetAllAsync(Guid sindicoId, Guid userId);
+    Task<CondominioDetalheResponse> GetByIdAsync(Guid id, Guid sindicoId, Guid userId);
     Task<CondominioResponse> CreateAsync(CreateCondominioRequest request, Guid sindicoId);
     Task<CondominioResponse> UpdateAsync(Guid id, CreateCondominioRequest request, Guid sindicoId);
     Task DeleteAsync(Guid id, Guid sindicoId);

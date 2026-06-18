@@ -9,6 +9,7 @@ public class SindiOpsDbContext : DbContext
 
     public DbSet<Sindico> Sindicos => Set<Sindico>();
     public DbSet<Funcionario> Funcionarios => Set<Funcionario>();
+    public DbSet<FuncionarioCondominio> FuncionarioCondominios => Set<FuncionarioCondominio>();
     public DbSet<Condominio> Condominios => Set<Condominio>();
     public DbSet<Bloco> Blocos => Set<Bloco>();
     public DbSet<Unidade> Unidades => Set<Unidade>();

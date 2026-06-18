@@ -151,6 +151,8 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
             .FirstOrDefaultAsync(s => s.Id == id && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 
+        EnsureStatus(entity, SolicitacaoStatus.Nova, "editar a solicitação");
+
         if (entity.CondominioId != request.CondominioId)
         {
             var novoOk = await _db.Condominios
@@ -188,6 +190,20 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
             .ThenInclude(c => c.Fornecedor)
             .FirstOrDefaultAsync(s => s.Id == id && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
+
+        EnsureStatus(entity, SolicitacaoStatus.Nova, "aprovar");
+
+        if (entity.Cotacoes.Count < 1)
+            throw new ValidationException(new[]
+            {
+                new ValidationFailure("cotacoes", "É necessário ao menos uma cotação")
+            });
+
+        if (!entity.Cotacoes.Any(c => c.Selecionada))
+            throw new ValidationException(new[]
+            {
+                new ValidationFailure("cotacoes", "Selecione uma cotação vencedora")
+            });
 
         entity.Status = SolicitacaoStatus.EmAndamento;
         // FK aprovado_por → funcionarios: síndico não tem linha em funcionarios
@@ -234,7 +250,6 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
 
         return (atual, novo) switch
         {
-            (SolicitacaoStatus.Nova, SolicitacaoStatus.EmAndamento) => true,
             (SolicitacaoStatus.Nova, SolicitacaoStatus.Cancelada) => true,
             (SolicitacaoStatus.Cancelada, SolicitacaoStatus.EmAndamento) => true,
             (SolicitacaoStatus.EmAndamento, SolicitacaoStatus.Finalizada) => true,
@@ -270,9 +285,14 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
             .FirstOrDefaultAsync(s => s.Id == solicitacaoId && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 
+        EnsureStatus(solicitacao, SolicitacaoStatus.Nova, "alterar cotações");
+
         if (request.FornecedorId.HasValue &&
             !await _db.Fornecedores.AnyAsync(f => f.Id == request.FornecedorId && f.SindicoId == sindicoId))
             throw new KeyNotFoundException("Fornecedor não encontrado");
+
+        var quantidade = ResolverQuantidadeCotacao(request.Quantidade, solicitacao.Quantidade);
+        var valorTotal = CalcularValorTotalCotacao(request.ValorUnitario, quantidade);
 
         var cotacao = new Cotacao
         {
@@ -282,10 +302,10 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
             NomeContato = request.NomeContato,
             NomeResponsavel = request.NomeResponsavel,
             ValorUnitario = request.ValorUnitario,
-            ValorTotal = request.ValorTotal,
+            ValorTotal = valorTotal,
             FormaPagamento = request.FormaPagamento,
             DescricaoProduto = request.DescricaoProduto,
-            Quantidade = request.Quantidade,
+            Quantidade = request.Quantidade ?? solicitacao.Quantidade,
             Unidade = request.Unidade,
             Selecionada = false,
             CriadoEm = DateTime.UtcNow
@@ -313,6 +333,8 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
                 c.SolicitacaoCompra.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Cotação não encontrada");
 
+        EnsureStatus(cotacao.SolicitacaoCompra, SolicitacaoStatus.Nova, "alterar cotações");
+
         if (request.FornecedorId.HasValue &&
             !await _db.Fornecedores.AnyAsync(f => f.Id == request.FornecedorId && f.SindicoId == sindicoId))
             throw new KeyNotFoundException("Fornecedor não encontrado");
@@ -322,10 +344,11 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
         cotacao.NomeContato = request.NomeContato;
         cotacao.NomeResponsavel = request.NomeResponsavel;
         cotacao.ValorUnitario = request.ValorUnitario;
-        cotacao.ValorTotal = request.ValorTotal;
+        var quantidadeAtualizada = ResolverQuantidadeCotacao(request.Quantidade, cotacao.SolicitacaoCompra.Quantidade);
+        cotacao.ValorTotal = CalcularValorTotalCotacao(request.ValorUnitario, quantidadeAtualizada);
         cotacao.FormaPagamento = request.FormaPagamento;
         cotacao.DescricaoProduto = request.DescricaoProduto;
-        cotacao.Quantidade = request.Quantidade;
+        cotacao.Quantidade = request.Quantidade ?? cotacao.SolicitacaoCompra.Quantidade;
         cotacao.Unidade = request.Unidade;
 
         await _db.SaveChangesAsync();
@@ -339,10 +362,11 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
 
         await using var tx = await _db.Database.BeginTransactionAsync();
 
-        var existeSolicitacao = await _db.SolicitacoesCompra
-            .AnyAsync(s => s.Id == solicitacaoId && s.Condominio.SindicoId == sindicoId);
-        if (!existeSolicitacao)
-            throw new KeyNotFoundException("Solicitação não encontrada");
+        var solicitacao = await _db.SolicitacoesCompra
+            .FirstOrDefaultAsync(s => s.Id == solicitacaoId && s.Condominio.SindicoId == sindicoId)
+            ?? throw new KeyNotFoundException("Solicitação não encontrada");
+
+        EnsureStatus(solicitacao, SolicitacaoStatus.Nova, "alterar cotações");
 
         var cotacoes = await _db.Cotacoes
             .Where(c => c.SolicitacaoCompraId == solicitacaoId)
@@ -351,12 +375,21 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
         var alvo = cotacoes.FirstOrDefault(c => c.Id == cotacaoId)
             ?? throw new KeyNotFoundException("Cotação não encontrada");
 
-        foreach (var c in cotacoes)
+        if (alvo.Selecionada)
+        {
+            await tx.CommitAsync();
+            return;
+        }
+
+        // Índice único parcial (uma selecionada por solicitação): desmarca antes de marcar a nova.
+        foreach (var c in cotacoes.Where(c => c.Selecionada))
             c.Selecionada = false;
 
-        alvo.Selecionada = true;
-
         await _db.SaveChangesAsync();
+
+        alvo.Selecionada = true;
+        await _db.SaveChangesAsync();
+
         await tx.CommitAsync();
     }
 
@@ -372,7 +405,28 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
                 c.SolicitacaoCompra.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Cotação não encontrada");
 
+        EnsureStatus(cotacao.SolicitacaoCompra, SolicitacaoStatus.Nova, "alterar cotações");
+
         _db.Cotacoes.Remove(cotacao);
         await _db.SaveChangesAsync();
     }
+
+    private static void EnsureStatus(SolicitacaoCompra s, string esperado, string acao)
+    {
+        if (s.Status != esperado)
+            throw new ValidationException(new[]
+            {
+                new ValidationFailure("status",
+                    $"Não é possível {acao} com status '{s.Status}'. Esperado: '{esperado}'.")
+            });
+    }
+
+    private static decimal ResolverQuantidadeCotacao(decimal? quantidadeCotacao, decimal quantidadeSolicitacao)
+    {
+        if (quantidadeCotacao is > 0) return quantidadeCotacao.Value;
+        return quantidadeSolicitacao;
+    }
+
+    private static decimal CalcularValorTotalCotacao(decimal valorUnitario, decimal quantidade)
+        => Math.Round(valorUnitario * quantidade, 2, MidpointRounding.AwayFromZero);
 }

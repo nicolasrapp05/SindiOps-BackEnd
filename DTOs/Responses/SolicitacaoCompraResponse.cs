@@ -12,5 +12,6 @@ public class SolicitacaoCompraResponse
     public PessoaRefResponse? AprovadoPor { get; set; }
     public PessoaRefResponse SolicitadoPor { get; set; } = null!;
     public int TotalCotacoes { get; set; }
+    public bool TemCotacaoSelecionada { get; set; }
     public DateTime CriadoEm { get; set; }
 }

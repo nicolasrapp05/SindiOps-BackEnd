@@ -25,7 +25,8 @@ public class SolicitacaoCompraProfile : Profile
                         Nome = s.SolicitadoPorSindico.Nome,
                     }))
             .ForMember(d => d.AprovadoPor, o => o.MapFrom(s => s.AprovadoPor))
-            .ForMember(d => d.TotalCotacoes, o => o.MapFrom(s => s.Cotacoes.Count));
+            .ForMember(d => d.TotalCotacoes, o => o.MapFrom(s => s.Cotacoes.Count))
+            .ForMember(d => d.TemCotacaoSelecionada, o => o.MapFrom(s => s.Cotacoes.Any(c => c.Selecionada)));
 
         CreateMap<SolicitacaoCompra, SolicitacaoCompraDetalheResponse>()
             .IncludeBase<SolicitacaoCompra, SolicitacaoCompraResponse>()

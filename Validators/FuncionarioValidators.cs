@@ -23,6 +23,9 @@ public class ConvidarFuncionarioRequestValidator : AbstractValidator<ConvidarFun
             .NotEmpty().WithMessage("Cargo é obrigatório")
             .Must(c => CargosValidos.Contains(c))
             .WithMessage($"Cargo inválido. Valores aceitos: {string.Join(", ", CargosValidos)}");
+
+        RuleFor(x => x.CondominioIds)
+            .NotEmpty().WithMessage("Selecione ao menos um condomínio");
     }
 }
 
@@ -41,5 +44,8 @@ public class UpdateFuncionarioRequestValidator : AbstractValidator<UpdateFuncion
             .NotEmpty().WithMessage("Cargo é obrigatório")
             .Must(c => CargosValidos.Contains(c))
             .WithMessage($"Cargo inválido. Valores aceitos: {string.Join(", ", CargosValidos)}");
+
+        RuleFor(x => x.CondominioIds)
+            .NotEmpty().WithMessage("Selecione ao menos um condomínio");
     }
 }

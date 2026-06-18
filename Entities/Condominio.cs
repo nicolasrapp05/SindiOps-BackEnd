@@ -24,4 +24,5 @@ public class Condominio
     public ICollection<SolicitacaoManutencao> SolicitacoesManutencao { get; set; } = [];
     public ICollection<SolicitacaoCompra> SolicitacoesCompra { get; set; } = [];
     public ICollection<Ocorrencia> Ocorrencias { get; set; } = [];
+    public ICollection<FuncionarioCondominio> FuncionariosAcesso { get; set; } = [];
 }

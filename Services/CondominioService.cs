@@ -19,10 +19,12 @@ public class CondominioService : ICondominioService
         _mapper = mapper;
     }
 
-    public async Task<List<CondominioResponse>> GetAllAsync(Guid sindicoId)
+    public async Task<List<CondominioResponse>> GetAllAsync(Guid sindicoId, Guid userId)
     {
+        var acessiveis = await UsuarioSindicoScope.ObterCondominiosAcessiveisAsync(_db, userId, sindicoId);
+
         return await _db.Condominios
-            .Where(c => c.SindicoId == sindicoId)
+            .Where(c => c.SindicoId == sindicoId && acessiveis.Contains(c.Id))
             .Select(c => new CondominioResponse
             {
                 Id = c.Id,
@@ -42,8 +44,11 @@ public class CondominioService : ICondominioService
             .ToListAsync();
     }
 
-    public async Task<CondominioDetalheResponse> GetByIdAsync(Guid id, Guid sindicoId)
+    public async Task<CondominioDetalheResponse> GetByIdAsync(Guid id, Guid sindicoId, Guid userId)
     {
+        if (!await UsuarioSindicoScope.FuncionarioPodeAcessarCondominioAsync(_db, userId, sindicoId, id))
+            throw new KeyNotFoundException("Condomínio não encontrado");
+
         var condominio = await _db.Condominios
             .Include(c => c.Blocos)
                 .ThenInclude(b => b.Unidades)
