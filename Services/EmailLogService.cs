@@ -27,7 +27,8 @@ public class EmailLogService : IEmailLogService
             .Include(e => e.Morador)
             .Include(e => e.Ocorrencia)
             .Include(e => e.Template)
-            .Include(e => e.EnviadoPor)
+            .Include(e => e.EnviadoPorFuncionario)
+            .Include(e => e.EnviadoPorSindico)
             .Where(e => e.SindicoId == sindicoId);
 
         if (q.CondominioId.HasValue)
@@ -43,6 +44,20 @@ public class EmailLogService : IEmailLogService
 
         if (q.OcorrenciaId.HasValue)
             query = query.Where(e => e.OcorrenciaId == q.OcorrenciaId.Value);
+
+        if (q.TemplateId.HasValue)
+            query = query.Where(e => e.TemplateId == q.TemplateId.Value);
+
+        if (!string.IsNullOrWhiteSpace(q.TemplateTipo))
+            query = query.Where(e => e.Template != null && e.Template.Tipo == q.TemplateTipo);
+
+        if (!string.IsNullOrWhiteSpace(q.Search))
+        {
+            var term = q.Search.Trim().ToLower();
+            query = query.Where(e =>
+                e.Morador.Nome.ToLower().Contains(term) ||
+                e.EmailDestinatario.ToLower().Contains(term));
+        }
 
         if (!string.IsNullOrWhiteSpace(q.StatusEntrega))
             query = query.Where(e => e.StatusEntrega == q.StatusEntrega);
@@ -85,7 +100,8 @@ public class EmailLogService : IEmailLogService
             .Include(e => e.Morador)
             .Include(e => e.Ocorrencia)
             .Include(e => e.Template)
-            .Include(e => e.EnviadoPor)
+            .Include(e => e.EnviadoPorFuncionario)
+            .Include(e => e.EnviadoPorSindico)
             .FirstOrDefaultAsync(e => e.Id == id && e.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Registo de e-mail não encontrado");
 

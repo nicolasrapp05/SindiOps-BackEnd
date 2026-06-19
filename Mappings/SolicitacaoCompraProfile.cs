@@ -1,4 +1,5 @@
 using AutoMapper;
+using SindiOps.API.Constants;
 using SindiOps.API.DTOs.Responses;
 using SindiOps.API.Entities;
 
@@ -18,11 +19,13 @@ public class SolicitacaoCompraProfile : Profile
                     {
                         Id = s.SolicitadoPorFuncionario.Id,
                         Nome = s.SolicitadoPorFuncionario.Nome,
+                        Cargo = s.SolicitadoPorFuncionario.Cargo,
                     }
                     : new PessoaRefResponse
                     {
                         Id = s.SolicitadoPorSindico!.Id,
                         Nome = s.SolicitadoPorSindico.Nome,
+                        Cargo = CargoConstants.Sindico,
                     }))
             .ForMember(d => d.AprovadoPor, o => o.MapFrom(s => s.AprovadoPor))
             .ForMember(d => d.TotalCotacoes, o => o.MapFrom(s => s.Cotacoes.Count))

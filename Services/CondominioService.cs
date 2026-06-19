@@ -1,4 +1,6 @@
 using AutoMapper;
+using FluentValidation;
+using FluentValidation.Results;
 using Microsoft.EntityFrameworkCore;
 using SindiOps.API.DTOs.Requests;
 using SindiOps.API.DTOs.Responses;
@@ -192,11 +194,14 @@ public class CondominioService : ICondominioService
         if (!blocoExiste)
             throw new KeyNotFoundException("Bloco não encontrado neste condomínio");
 
+        var numero = request.Numero.Trim();
+        await GarantirNumeroUnidadeUnicoAsync(blocoId, numero);
+
         var unidade = new Unidade
         {
             BlocoId = blocoId,
             CondominioId = condominioId,
-            Numero = request.Numero,
+            Numero = numero,
             CriadoEm = DateTime.UtcNow
         };
 
@@ -248,7 +253,10 @@ public class CondominioService : ICondominioService
             .FirstOrDefaultAsync(u => u.Id == unidadeId && u.BlocoId == blocoId && u.CondominioId == condominioId)
             ?? throw new KeyNotFoundException("Unidade não encontrada");
 
-        unidade.Numero = request.Numero;
+        var numero = request.Numero.Trim();
+        await GarantirNumeroUnidadeUnicoAsync(blocoId, numero, unidadeId);
+
+        unidade.Numero = numero;
         await _db.SaveChangesAsync();
 
         return new UnidadeResponse { Id = unidade.Id, Numero = unidade.Numero };
@@ -281,5 +289,27 @@ public class CondominioService : ICondominioService
 
         if (!pertence)
             throw new KeyNotFoundException("Condomínio não encontrado");
+    }
+
+    private async Task GarantirNumeroUnidadeUnicoAsync(
+        Guid blocoId, string numero, Guid? unidadeIdExcluir = null)
+    {
+        var query = _db.Unidades.Where(u => u.BlocoId == blocoId);
+
+        if (unidadeIdExcluir.HasValue)
+            query = query.Where(u => u.Id != unidadeIdExcluir.Value);
+
+        var existe = await query.AnyAsync(u =>
+            u.Numero.ToLower() == numero.ToLower());
+
+        if (existe)
+        {
+            throw new ValidationException(new[]
+            {
+                new ValidationFailure(
+                    nameof(numero),
+                    "Já existe uma unidade com este número neste bloco.")
+            });
+        }
     }
 }

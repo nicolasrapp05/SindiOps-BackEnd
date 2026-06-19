@@ -61,8 +61,8 @@ public class FuncionariosController : ControllerBase
     public async Task<IActionResult> Ativar(Guid id)
     {
         var sindicoId = User.GetUserId();
-        await _service.AtivarAsync(id, sindicoId);
-        return Ok(ApiResponse<object?>.Ok(null, "Funcionário ativado com sucesso"));
+        var data = await _service.AtivarAsync(id, sindicoId);
+        return Ok(ApiResponse<object>.Ok(data, "Funcionário ativado com sucesso"));
     }
 
     // PATCH api/v1/funcionarios/{id}/desativar
@@ -72,8 +72,8 @@ public class FuncionariosController : ControllerBase
         var sindicoId = User.GetUserId();
         try
         {
-            await _service.DesativarAsync(id, sindicoId, sindicoId);
-            return Ok(ApiResponse<object?>.Ok(null, "Funcionário desativado com sucesso"));
+            var data = await _service.DesativarAsync(id, sindicoId, sindicoId);
+            return Ok(ApiResponse<object>.Ok(data, "Funcionário desativado com sucesso"));
         }
         catch (InvalidOperationException ex)
         {

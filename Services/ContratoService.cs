@@ -1,4 +1,6 @@
 using AutoMapper;
+using FluentValidation;
+using FluentValidation.Results;
 using Microsoft.EntityFrameworkCore;
 using SindiOps.API.Constants;
 using SindiOps.API.DTOs.Requests;
@@ -23,6 +25,8 @@ public class ContratoService : IContratoService
 
     public async Task<PaginatedResponse<ContratoResponse>> GetAllAsync(Guid sindicoId, ContratoQueryParams q)
     {
+        await SincronizarStatusAutomaticosAsync(sindicoId, q.CondominioId);
+
         var query = _db.Contratos
             .Include(c => c.Fornecedor)
             .Where(c => c.Condominio.SindicoId == sindicoId);
@@ -69,6 +73,9 @@ public class ContratoService : IContratoService
             .FirstOrDefaultAsync(c => c.Id == id && c.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Contrato não encontrado");
 
+        if (ContratoStatusCalculator.TryApplyAutomaticStatus(contrato))
+            await _db.SaveChangesAsync();
+
         return _mapper.Map<ContratoDetalheResponse>(contrato);
     }
 
@@ -90,9 +97,10 @@ public class ContratoService : IContratoService
             IndiceReajuste = request.IndiceReajuste,
             CondicoesRenovacao = request.CondicoesRenovacao,
             CondicoesRescisao = request.CondicoesRescisao,
-            Status = ContratoStatus.Active,
             CriadoEm = DateTime.UtcNow
         };
+
+        ContratoStatusCalculator.TryApplyAutomaticStatus(contrato);
 
         _db.Contratos.Add(contrato);
         await _db.SaveChangesAsync();
@@ -129,6 +137,8 @@ public class ContratoService : IContratoService
         contrato.CondicoesRescisao = request.CondicoesRescisao;
         contrato.AtualizadoEm = DateTime.UtcNow;
 
+        ContratoStatusCalculator.TryApplyAutomaticStatus(contrato);
+
         await _db.SaveChangesAsync();
 
         // recarrega fornecedor caso tenha mudado
@@ -145,7 +155,24 @@ public class ContratoService : IContratoService
             .FirstOrDefaultAsync(c => c.Id == id && c.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Contrato não encontrado");
 
-        contrato.Status = request.Status;
+        if (request.Status != ContratoStatus.Cancelled)
+        {
+            throw new ValidationException(new[]
+            {
+                new ValidationFailure("status",
+                    "Alterações entre vigente, expirando e expirado são automáticas. Atualize a data de término ou reative o contrato.")
+            });
+        }
+
+        if (contrato.Status == ContratoStatus.Cancelled)
+        {
+            throw new ValidationException(new[]
+            {
+                new ValidationFailure("status", "Este contrato já está cancelado.")
+            });
+        }
+
+        contrato.Status = ContratoStatus.Cancelled;
         contrato.AtualizadoEm = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
@@ -153,7 +180,50 @@ public class ContratoService : IContratoService
         return _mapper.Map<ContratoDetalheResponse>(contrato);
     }
 
+    public async Task<ContratoDetalheResponse> ReativarAsync(Guid id, Guid sindicoId)
+    {
+        var contrato = await _db.Contratos
+            .Include(c => c.Fornecedor)
+            .FirstOrDefaultAsync(c => c.Id == id && c.Condominio.SindicoId == sindicoId)
+            ?? throw new KeyNotFoundException("Contrato não encontrado");
+
+        if (contrato.Status != ContratoStatus.Cancelled)
+        {
+            throw new ValidationException(new[]
+            {
+                new ValidationFailure("status", "Apenas contratos cancelados podem ser reativados.")
+            });
+        }
+
+        ContratoStatusCalculator.ApplyReativacao(contrato);
+        await _db.SaveChangesAsync();
+
+        return _mapper.Map<ContratoDetalheResponse>(contrato);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    private async Task SincronizarStatusAutomaticosAsync(Guid sindicoId, Guid? condominioId)
+    {
+        var query = _db.Contratos
+            .Where(c => c.Condominio.SindicoId == sindicoId && c.Status != ContratoStatus.Cancelled);
+
+        if (condominioId.HasValue)
+            query = query.Where(c => c.CondominioId == condominioId.Value);
+
+        var contratos = await query.ToListAsync();
+        var hoje = DateOnly.FromDateTime(DateTime.UtcNow);
+        var changed = false;
+
+        foreach (var contrato in contratos)
+        {
+            if (ContratoStatusCalculator.TryApplyAutomaticStatus(contrato, hoje))
+                changed = true;
+        }
+
+        if (changed)
+            await _db.SaveChangesAsync();
+    }
 
     private async Task VerificarCondominioAsync(Guid condominioId, Guid sindicoId)
     {

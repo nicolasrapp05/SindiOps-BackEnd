@@ -35,10 +35,10 @@ public class ComunicacaoService : IComunicacaoService
     {
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, enviadoPorId);
 
-        if (!await UsuarioSindicoScope.IsFuncionarioDoSindicoAsync(_db, enviadoPorId, sindicoId))
+        if (!await UsuarioSindicoScope.IsFuncionarioOuSindicoPrincipalAsync(_db, enviadoPorId, sindicoId))
             throw new ValidationException(new[]
             {
-                new ValidationFailure("", "Apenas funcionários podem enviar comunicações")
+                new ValidationFailure("", "Utilizador não autorizado a enviar comunicações")
             });
 
         var ocorrencia = await _db.Ocorrencias
@@ -66,6 +66,13 @@ public class ComunicacaoService : IComunicacaoService
         var assunto = _templateResolver.Resolve(request.AssuntoEditado, valores, nameof(EnviarComunicacaoRequest.AssuntoEditado));
         var corpo = _templateResolver.Resolve(request.CorpoEditado, valores, nameof(EnviarComunicacaoRequest.CorpoEditado));
 
+        Guid? enviadoPorFuncionarioId = null;
+        Guid? enviadoPorSindicoId = null;
+        if (await UsuarioSindicoScope.IsFuncionarioDoSindicoAsync(_db, enviadoPorId, sindicoId))
+            enviadoPorFuncionarioId = enviadoPorId;
+        else
+            enviadoPorSindicoId = sindicoId;
+
         var enviadoOk = false;
         try
         {
@@ -86,9 +93,10 @@ public class ComunicacaoService : IComunicacaoService
             Assunto = assunto,
             CorpoResolvido = corpo,
             ValorMulta = request.ValorMulta,
-            EnviadoPorId = enviadoPorId,
+            EnviadoPorFuncionarioId = enviadoPorFuncionarioId,
+            EnviadoPorSindicoId = enviadoPorSindicoId,
             EnviadoEm = DateTime.UtcNow,
-            StatusEntrega = enviadoOk ? EmailLogStatus.Sent : EmailLogStatus.Failed,
+            StatusEntrega = enviadoOk ? EmailLogStatus.Delivered : EmailLogStatus.Failed,
             CriadoEm = DateTime.UtcNow
         };
 
@@ -124,11 +132,11 @@ public class ComunicacaoService : IComunicacaoService
             ["unidade"] = unidadeNum,
             ["bloco"] = blocoNome,
             ["condominio"] = ocorrencia.Condominio.Nome,
-            ["data_ocorrencia"] = ocorrencia.OcorreuEm.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) + " UTC",
+            ["data_ocorrencia"] = ocorrencia.OcorreuEm.ToString("dd/MM/yyyy HH:mm", CultureInfo.GetCultureInfo("pt-BR")),
             ["descricao_ocorrencia"] = ocorrencia.Descricao,
             ["tipo_ocorrencia"] = ocorrencia.TipoOcorrencia,
             ["nome_sindico"] = sindico.Nome,
-            ["data_envio"] = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) + " UTC",
+            ["data_envio"] = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm", CultureInfo.GetCultureInfo("pt-BR")),
             ["valor_multa"] = valorMulta.HasValue ? valorMulta.Value.ToString("F2", CultureInfo.InvariantCulture) : string.Empty,
             ["prazo_resposta"] = prazoFormatado
         };

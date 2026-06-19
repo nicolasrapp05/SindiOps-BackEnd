@@ -11,4 +11,5 @@ public interface IContratoService
     Task<ContratoDetalheResponse> CreateAsync(CreateContratoRequest request, Guid sindicoId);
     Task<ContratoDetalheResponse> UpdateAsync(Guid id, CreateContratoRequest request, Guid sindicoId);
     Task<ContratoDetalheResponse> UpdateStatusAsync(Guid id, UpdateContratoStatusRequest request, Guid sindicoId);
+    Task<ContratoDetalheResponse> ReativarAsync(Guid id, Guid sindicoId);
 }

@@ -19,6 +19,7 @@ public class UnidadeConfiguration : IEntityTypeConfiguration<Unidade>
 
         builder.HasIndex(u => u.BlocoId);
         builder.HasIndex(u => u.CondominioId);
+        builder.HasIndex(u => new { u.BlocoId, u.Numero }).IsUnique();
 
         builder.HasOne(u => u.Bloco)
             .WithMany(b => b.Unidades)

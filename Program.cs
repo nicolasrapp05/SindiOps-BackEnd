@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Resend;
+using SindiOps.API.Infrastructure.Auth;
 using SindiOps.API.Infrastructure.BackgroundJobs;
 using SindiOps.API.Infrastructure.Data;
 using SindiOps.API.Infrastructure.Email;
@@ -67,6 +68,10 @@ builder.Services.AddSwaggerGen(c =>
 
 // ── HttpContextAccessor ───────────────────────────────────────────────────────
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddMemoryCache();
+builder.Services.Configure<PasswordResetRateLimitOptions>(
+    builder.Configuration.GetSection(PasswordResetRateLimitOptions.SectionName));
+builder.Services.AddSingleton<IPasswordResetRateLimiter, PasswordResetRateLimiter>();
 
 // ── Resend (email transacional) ───────────────────────────────────────────────
 builder.Services.AddOptions();
@@ -79,8 +84,11 @@ builder.Services.AddTransient<IResend, ResendClient>();
 
 // ── Serviços de infraestrutura ────────────────────────────────────────────────
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<ISupabaseAuthService, SupabaseAuthService>();
 
 // ── Serviços de domínio ───────────────────────────────────────────────────────
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IPerfilService, PerfilService>();
 builder.Services.AddScoped<ICondominioService, CondominioService>();
 builder.Services.AddScoped<IMoradorService, MoradorService>();
 builder.Services.AddScoped<IFuncionarioService, FuncionarioService>();
@@ -104,6 +112,7 @@ builder.Services.AddHttpClient();
 
 // ── Background Service — atualização diária de status de manutenções ─────────
 builder.Services.AddHostedService<ManutencaoStatusJob>();
+builder.Services.AddHostedService<ContratoStatusJob>();
 
 // ── Controllers ──────────────────────────────────────────────────────────────
 builder.Services.AddControllers();

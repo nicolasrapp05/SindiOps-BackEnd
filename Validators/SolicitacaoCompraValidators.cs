@@ -64,6 +64,11 @@ public class CreateCotacaoRequestValidator : AbstractValidator<CreateCotacaoRequ
             .When(x => !x.FornecedorId.HasValue)
             .WithMessage("NomeEmpresa é obrigatório quando FornecedorId não é informado");
 
+        RuleFor(x => x.NomeEmpresa)
+            .Empty()
+            .When(x => x.FornecedorId.HasValue)
+            .WithMessage("NomeEmpresa não deve ser informado quando FornecedorId é informado");
+
         RuleFor(x => x.ValorUnitario)
             .GreaterThan(0).WithMessage("ValorUnitario deve ser maior que zero");
     }

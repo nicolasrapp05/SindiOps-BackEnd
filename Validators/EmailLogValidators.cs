@@ -14,6 +14,13 @@ public class EmailLogQueryParamsValidator : AbstractValidator<EmailLogQueryParam
                 .Must(s => EmailLogStatusTodos.Contains(s))
                 .WithMessage("statusEntrega inválido");
         });
+
+        When(x => !string.IsNullOrWhiteSpace(x.TemplateTipo), () =>
+        {
+            RuleFor(x => x.TemplateTipo!)
+                .Must(t => EmailTemplateTipo.Todos.Contains(t))
+                .WithMessage("templateTipo inválido");
+        });
     }
 
     private static readonly HashSet<string> EmailLogStatusTodos =

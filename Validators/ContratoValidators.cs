@@ -26,14 +26,11 @@ public class CreateContratoRequestValidator : AbstractValidator<CreateContratoRe
 
 public class UpdateContratoStatusRequestValidator : AbstractValidator<UpdateContratoStatusRequest>
 {
-    private static readonly string[] StatusValidos =
-        [ContratoStatus.Active, ContratoStatus.Expiring, ContratoStatus.Expired, ContratoStatus.Cancelled];
-
     public UpdateContratoStatusRequestValidator()
     {
         RuleFor(x => x.Status)
             .NotEmpty().WithMessage("Status é obrigatório")
-            .Must(s => StatusValidos.Contains(s))
-            .WithMessage($"Status inválido. Valores aceitos: {string.Join(", ", StatusValidos)}");
+            .Must(s => s == ContratoStatus.Cancelled)
+            .WithMessage("Use este endpoint apenas para cancelar o contrato.");
     }
 }

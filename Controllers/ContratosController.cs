@@ -54,12 +54,21 @@ public class ContratosController : ControllerBase
         return Ok(ApiResponse<object>.Ok(data));
     }
 
-    // PATCH api/v1/contratos/{id}/status
+    // PATCH api/v1/contratos/{id}/status  — cancelar contrato
     [HttpPatch("{id:guid}/status")]
     public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateContratoStatusRequest request)
     {
         var sindicoId = User.GetUserId();
         var data = await _service.UpdateStatusAsync(id, request, sindicoId);
-        return Ok(ApiResponse<object>.Ok(data, "Status atualizado com sucesso"));
+        return Ok(ApiResponse<object>.Ok(data, "Contrato cancelado com sucesso"));
+    }
+
+    // PATCH api/v1/contratos/{id}/reativar
+    [HttpPatch("{id:guid}/reativar")]
+    public async Task<IActionResult> Reativar(Guid id)
+    {
+        var sindicoId = User.GetUserId();
+        var data = await _service.ReativarAsync(id, sindicoId);
+        return Ok(ApiResponse<object>.Ok(data, "Contrato reativado com sucesso"));
     }
 }

@@ -298,7 +298,7 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
         {
             SolicitacaoCompraId = solicitacao.Id,
             FornecedorId = request.FornecedorId,
-            NomeEmpresa = request.NomeEmpresa,
+            NomeEmpresa = request.FornecedorId.HasValue ? null : request.NomeEmpresa,
             NomeContato = request.NomeContato,
             NomeResponsavel = request.NomeResponsavel,
             ValorUnitario = request.ValorUnitario,
@@ -340,7 +340,7 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
             throw new KeyNotFoundException("Fornecedor não encontrado");
 
         cotacao.FornecedorId = request.FornecedorId;
-        cotacao.NomeEmpresa = request.NomeEmpresa;
+        cotacao.NomeEmpresa = request.FornecedorId.HasValue ? null : request.NomeEmpresa;
         cotacao.NomeContato = request.NomeContato;
         cotacao.NomeResponsavel = request.NomeResponsavel;
         cotacao.ValorUnitario = request.ValorUnitario;

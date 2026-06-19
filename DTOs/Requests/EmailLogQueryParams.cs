@@ -5,6 +5,9 @@ public class EmailLogQueryParams
     public Guid? CondominioId { get; set; }
     public Guid? MoradorId { get; set; }
     public Guid? OcorrenciaId { get; set; }
+    public Guid? TemplateId { get; set; }
+    public string? TemplateTipo { get; set; }
+    public string? Search { get; set; }
     public string? StatusEntrega { get; set; }
     public DateOnly? DataInicio { get; set; }
     public DateOnly? DataFim { get; set; }

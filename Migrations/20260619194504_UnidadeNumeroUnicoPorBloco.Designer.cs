@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SindiOps.API.Infrastructure.Data;
@@ -11,9 +12,11 @@ using SindiOps.API.Infrastructure.Data;
 namespace SindiOps.API.Migrations
 {
     [DbContext(typeof(SindiOpsDbContext))]
-    partial class SindiOpsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260619194504_UnidadeNumeroUnicoPorBloco")]
+    partial class UnidadeNumeroUnicoPorBloco
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

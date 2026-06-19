@@ -18,7 +18,19 @@ public class EmailLogProfile : Profile
             .ForMember(d => d.Morador, o => o.MapFrom(s => s.Morador))
             .ForMember(d => d.Ocorrencia, o => o.MapFrom(s => s.Ocorrencia))
             .ForMember(d => d.Template, o => o.MapFrom(s => s.Template))
-            .ForMember(d => d.EnviadoPor, o => o.MapFrom(s => s.EnviadoPor));
+            .ForMember(d => d.EnviadoPor, o => o.MapFrom(s =>
+                s.EnviadoPorFuncionario != null
+                    ? new PessoaRefResponse
+                    {
+                        Id = s.EnviadoPorFuncionario.Id,
+                        Nome = s.EnviadoPorFuncionario.Nome,
+                        Cargo = s.EnviadoPorFuncionario.Cargo,
+                    }
+                    : new PessoaRefResponse
+                    {
+                        Id = s.EnviadoPorSindico!.Id,
+                        Nome = s.EnviadoPorSindico.Nome,
+                    }));
 
         CreateMap<EmailLog, EmailLogDetalheResponse>()
             .IncludeBase<EmailLog, EmailLogResponse>();
