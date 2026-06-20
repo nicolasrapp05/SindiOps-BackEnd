@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SindiOps.API.Authorization;
 using SindiOps.API.DTOs.Requests;
 using SindiOps.API.Helpers;
 using SindiOps.API.Services.Interfaces;
@@ -7,6 +8,7 @@ using SindiOps.API.Services.Interfaces;
 namespace SindiOps.API.Controllers;
 
 [Authorize]
+[RequireExceptPorteiroCargo]
 [ApiController]
 [Route("api/v1/manutencoes-obrigatorias")]
 public class ManutencoesObrigatoriasController : ControllerBase

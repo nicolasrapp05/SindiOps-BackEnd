@@ -15,7 +15,7 @@ public class DashboardService : IDashboardService
         _db = db;
     }
 
-    public async Task<DashboardResponse> GetDashboardAsync(Guid userId, Guid? condominioId)
+    public async Task<DashboardResponse> GetDashboardAsync(Guid userId, string cargo, Guid? condominioId)
     {
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
 
@@ -25,21 +25,26 @@ public class DashboardService : IDashboardService
 
         if (condominioId.HasValue)
         {
-            var pertence = await _db.Condominios.AsNoTracking()
-                .AnyAsync(c => c.Id == condominioId.Value && c.SindicoId == sindicoId);
+            var pertence = await UsuarioSindicoScope.FuncionarioPodeAcessarCondominioAsync(
+                _db, userId, sindicoId, condominioId.Value);
+
             if (!pertence)
                 throw new KeyNotFoundException("Condomínio não encontrado");
 
             idsQuery = idsQuery.Where(id => id == condominioId.Value);
+        }
+        else
+        {
+            var acessiveis = await UsuarioSindicoScope.ObterCondominiosAcessiveisAsync(_db, userId, sindicoId);
+            idsQuery = idsQuery.Where(id => acessiveis.Contains(id));
         }
 
         var condominioIds = await idsQuery.ToListAsync();
         if (condominioIds.Count == 0)
             return new DashboardResponse();
 
-        // DbContext não permite consultas concorrentes no mesmo escopo — executar em sequência.
-        var alertas = await CarregarAlertasAsync(condominioIds);
-        var agenda = await CarregarAgendaAsync(condominioIds, sindicoId, condominioId);
+        var alertas = await CarregarAlertasAsync(condominioIds, cargo);
+        var agenda = await CarregarAgendaAsync(condominioIds, sindicoId, condominioId, cargo);
 
         return new DashboardResponse
         {
@@ -48,106 +53,122 @@ public class DashboardService : IDashboardService
         };
     }
 
-    private async Task<DashboardAlertas> CarregarAlertasAsync(List<Guid> condominioIds)
+    private async Task<DashboardAlertas> CarregarAlertasAsync(List<Guid> condominioIds, string cargo)
     {
-        var manVencidas = _db.ManutencoesObrigatorias.AsNoTracking()
-            .Where(m => condominioIds.Contains(m.CondominioId) && m.Status == ManutencaoStatus.Overdue);
+        var alertas = new DashboardAlertas();
 
-        var manProximas = _db.ManutencoesObrigatorias.AsNoTracking()
-            .Where(m => condominioIds.Contains(m.CondominioId) && m.Status == ManutencaoStatus.Upcoming);
-
-        var ocorrenciasAbertas = _db.Ocorrencias.AsNoTracking()
-            .Where(o => condominioIds.Contains(o.CondominioId) &&
-                        (o.Status == OcorrenciaStatus.Nova || o.Status == OcorrenciaStatus.EmAndamento));
-
-        var comprasPendentes = _db.SolicitacoesCompra.AsNoTracking()
-            .Where(s => condominioIds.Contains(s.CondominioId) &&
-                        (s.Status == SolicitacaoStatus.Nova || s.Status == SolicitacaoStatus.EmAndamento));
-
-        var contratosVencendo = _db.Contratos.AsNoTracking()
-            .Where(c => condominioIds.Contains(c.CondominioId) && c.Status == ContratoStatus.Expiring);
-
-        return new DashboardAlertas
+        if (CargoPermissions.CanSeeManutencaoAlertas(cargo))
         {
-            ManutencoesVencidas = await manVencidas.CountAsync(),
-            ManutencoesProximas = await manProximas.CountAsync(),
-            OcorrenciasAbertas = await ocorrenciasAbertas.CountAsync(),
-            ComprasPendentes = await comprasPendentes.CountAsync(),
-            ContratosVencendo = await contratosVencendo.CountAsync()
-        };
+            alertas.ManutencoesVencidas = await _db.ManutencoesObrigatorias.AsNoTracking()
+                .CountAsync(m => condominioIds.Contains(m.CondominioId) && m.Status == ManutencaoStatus.Overdue);
+
+            alertas.ManutencoesProximas = await _db.ManutencoesObrigatorias.AsNoTracking()
+                .CountAsync(m => condominioIds.Contains(m.CondominioId) && m.Status == ManutencaoStatus.Upcoming);
+        }
+
+        if (CargoPermissions.CanSeeOcorrenciaAlertas(cargo))
+        {
+            alertas.OcorrenciasAbertas = await _db.Ocorrencias.AsNoTracking()
+                .CountAsync(o => condominioIds.Contains(o.CondominioId) &&
+                    (o.Status == OcorrenciaStatus.Nova || o.Status == OcorrenciaStatus.EmAndamento));
+        }
+
+        if (CargoPermissions.CanSeeComprasAlertas(cargo))
+        {
+            alertas.ComprasPendentes = await _db.SolicitacoesCompra.AsNoTracking()
+                .CountAsync(s => condominioIds.Contains(s.CondominioId) &&
+                    (s.Status == SolicitacaoStatus.Nova || s.Status == SolicitacaoStatus.EmAndamento));
+        }
+
+        if (CargoPermissions.CanSeeContratosAlertas(cargo))
+        {
+            alertas.ContratosVencendo = await _db.Contratos.AsNoTracking()
+                .CountAsync(c => condominioIds.Contains(c.CondominioId) && c.Status == ContratoStatus.Expiring);
+        }
+
+        return alertas;
     }
 
     private async Task<List<AgendaItem>> CarregarAgendaAsync(
         List<Guid> condominioIds,
         Guid sindicoId,
-        Guid? condominioIdFiltro)
+        Guid? condominioIdFiltro,
+        string cargo)
     {
-        var hoje = DateOnly.FromDateTime(DateTime.UtcNow);
-        var limiteMandato = hoje.AddDays(60);
+        var agenda = new List<AgendaItem>();
 
-        var manutencoesEntities = await _db.ManutencoesObrigatorias.AsNoTracking()
-            .Include(m => m.Condominio)
-            .Where(m => condominioIds.Contains(m.CondominioId) &&
-                        (m.Status == ManutencaoStatus.Upcoming || m.Status == ManutencaoStatus.Overdue))
-            .ToListAsync();
-
-        var manutencoes = manutencoesEntities.Select(m => new AgendaItem
+        if (CargoPermissions.CanSeeManutencaoAgenda(cargo))
         {
-            Tipo = "manutencao_obrigatoria",
-            Descricao = m.Tipo + (string.IsNullOrEmpty(m.Observacoes) ? "" : " — " + m.Observacoes),
-            DataVencimento = m.DataVencimento,
-            Status = m.Status,
-            CondominioId = m.CondominioId,
-            CondominioNome = m.Condominio.Nome,
-            ReferenciaId = m.Id
-        }).ToList();
+            var manutencoesEntities = await _db.ManutencoesObrigatorias.AsNoTracking()
+                .Include(m => m.Condominio)
+                .Where(m => condominioIds.Contains(m.CondominioId) &&
+                            (m.Status == ManutencaoStatus.Upcoming || m.Status == ManutencaoStatus.Overdue))
+                .ToListAsync();
 
-        var contratos = await _db.Contratos.AsNoTracking()
-            .Include(c => c.Condominio)
-            .Include(c => c.Fornecedor)
-            .Where(c => condominioIds.Contains(c.CondominioId) && c.Status == ContratoStatus.Expiring)
-            .ToListAsync();
-
-        var agendaContratos = contratos
-            .Where(c => c.DataFim.HasValue)
-            .Select(c => new AgendaItem
+            agenda.AddRange(manutencoesEntities.Select(m => new AgendaItem
             {
-                Tipo = "contrato",
-                Descricao = $"{c.TipoServico} — {c.Fornecedor.Nome}",
-                DataVencimento = c.DataFim!.Value,
-                Status = c.Status,
-                CondominioId = c.CondominioId,
-                CondominioNome = c.Condominio.Nome,
-                ReferenciaId = c.Id
-            })
-            .ToList();
+                Tipo = "manutencao_obrigatoria",
+                Descricao = m.Tipo + (string.IsNullOrEmpty(m.Observacoes) ? "" : " — " + m.Observacoes),
+                DataVencimento = m.DataVencimento,
+                Status = m.Status,
+                CondominioId = m.CondominioId,
+                CondominioNome = m.Condominio.Nome,
+                ReferenciaId = m.Id
+            }));
+        }
 
-        var condominiosMandatoQuery = _db.Condominios.AsNoTracking()
-            .Where(c => c.SindicoId == sindicoId &&
-                        c.VencimentoMandato.HasValue &&
-                        c.VencimentoMandato.Value >= hoje &&
-                        c.VencimentoMandato.Value <= limiteMandato);
+        if (CargoPermissions.CanSeeContratoAgenda(cargo))
+        {
+            var contratos = await _db.Contratos.AsNoTracking()
+                .Include(c => c.Condominio)
+                .Include(c => c.Fornecedor)
+                .Where(c => condominioIds.Contains(c.CondominioId) && c.Status == ContratoStatus.Expiring)
+                .ToListAsync();
 
-        if (condominioIdFiltro.HasValue)
-            condominiosMandatoQuery = condominiosMandatoQuery.Where(c => c.Id == condominioIdFiltro.Value);
+            agenda.AddRange(contratos
+                .Where(c => c.DataFim.HasValue)
+                .Select(c => new AgendaItem
+                {
+                    Tipo = "contrato",
+                    Descricao = $"{c.TipoServico} — {c.Fornecedor.Nome}",
+                    DataVencimento = c.DataFim!.Value,
+                    Status = c.Status,
+                    CondominioId = c.CondominioId,
+                    CondominioNome = c.Condominio.Nome,
+                    ReferenciaId = c.Id
+                }));
+        }
 
-        var mandatos = await condominiosMandatoQuery
-            .Select(c => new AgendaItem
-            {
-                Tipo = "mandato",
-                Descricao = "Vencimento do mandato do síndico",
-                DataVencimento = c.VencimentoMandato!.Value,
-                Status = "proximo",
-                CondominioId = c.Id,
-                CondominioNome = c.Nome,
-                ReferenciaId = c.Id
-            })
-            .ToListAsync();
+        if (CargoPermissions.CanSeeMandatoAgenda(cargo))
+        {
+            var hoje = DateOnly.FromDateTime(DateTime.UtcNow);
+            var limiteMandato = hoje.AddDays(60);
 
-        var agenda = new List<AgendaItem>(manutencoes.Count + agendaContratos.Count + mandatos.Count);
-        agenda.AddRange(manutencoes);
-        agenda.AddRange(agendaContratos);
-        agenda.AddRange(mandatos);
+            var condominiosMandatoQuery = _db.Condominios.AsNoTracking()
+                .Where(c => c.SindicoId == sindicoId &&
+                            c.VencimentoMandato.HasValue &&
+                            c.VencimentoMandato.Value >= hoje &&
+                            c.VencimentoMandato.Value <= limiteMandato &&
+                            condominioIds.Contains(c.Id));
+
+            if (condominioIdFiltro.HasValue)
+                condominiosMandatoQuery = condominiosMandatoQuery.Where(c => c.Id == condominioIdFiltro.Value);
+
+            var mandatos = await condominiosMandatoQuery
+                .Select(c => new AgendaItem
+                {
+                    Tipo = "mandato",
+                    Descricao = "Vencimento do mandato do síndico",
+                    DataVencimento = c.VencimentoMandato!.Value,
+                    Status = "proximo",
+                    CondominioId = c.Id,
+                    CondominioNome = c.Nome,
+                    ReferenciaId = c.Id
+                })
+                .ToListAsync();
+
+            agenda.AddRange(mandatos);
+        }
 
         agenda.Sort((a, b) => a.DataVencimento.CompareTo(b.DataVencimento));
         return agenda;

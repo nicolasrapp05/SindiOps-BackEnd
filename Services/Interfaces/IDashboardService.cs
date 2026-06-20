@@ -4,5 +4,5 @@ namespace SindiOps.API.Services.Interfaces;
 
 public interface IDashboardService
 {
-    Task<DashboardResponse> GetDashboardAsync(Guid userId, Guid? condominioId);
+    Task<DashboardResponse> GetDashboardAsync(Guid userId, string cargo, Guid? condominioId);
 }

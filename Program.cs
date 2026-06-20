@@ -3,9 +3,11 @@ using System.Text;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Resend;
+using SindiOps.API.Helpers;
 using SindiOps.API.Infrastructure.Auth;
 using SindiOps.API.Infrastructure.BackgroundJobs;
 using SindiOps.API.Infrastructure.Data;
@@ -28,6 +30,11 @@ builder.Services.AddAutoMapper(cfg => cfg.AddMaps(Assembly.GetExecutingAssembly(
 // ── FluentValidation ─────────────────────────────────────────────────────────
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = ValidationResponseFactory.Create;
+});
 
 // ── JWT Authentication (valida token emitido pelo Supabase Auth) ─────────────
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -71,7 +78,10 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
 builder.Services.Configure<PasswordResetRateLimitOptions>(
     builder.Configuration.GetSection(PasswordResetRateLimitOptions.SectionName));
+builder.Services.Configure<ConviteResendRateLimitOptions>(
+    builder.Configuration.GetSection(ConviteResendRateLimitOptions.SectionName));
 builder.Services.AddSingleton<IPasswordResetRateLimiter, PasswordResetRateLimiter>();
+builder.Services.AddSingleton<IConviteResendRateLimiter, ConviteResendRateLimiter>();
 
 // ── Resend (email transacional) ───────────────────────────────────────────────
 builder.Services.AddOptions();

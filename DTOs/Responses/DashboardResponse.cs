@@ -8,11 +8,11 @@ public class DashboardResponse
 
 public class DashboardAlertas
 {
-    public int ManutencoesVencidas { get; set; }
-    public int ManutencoesProximas { get; set; }
-    public int OcorrenciasAbertas { get; set; }
-    public int ComprasPendentes { get; set; }
-    public int ContratosVencendo { get; set; }
+    public int? ManutencoesVencidas { get; set; }
+    public int? ManutencoesProximas { get; set; }
+    public int? OcorrenciasAbertas { get; set; }
+    public int? ComprasPendentes { get; set; }
+    public int? ContratosVencendo { get; set; }
 }
 
 public class AgendaItem
