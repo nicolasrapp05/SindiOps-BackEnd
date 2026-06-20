@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SindiOps.API.Authorization;
 using SindiOps.API.DTOs.Requests;
 using SindiOps.API.Helpers;
 using SindiOps.API.Infrastructure.Data;
@@ -9,6 +10,7 @@ using SindiOps.API.Services.Interfaces;
 namespace SindiOps.API.Controllers;
 
 [Authorize]
+[RequireAdminCargo]
 [ApiController]
 [Route("api/v1/condominios")]
 public class CondominiosController : ControllerBase

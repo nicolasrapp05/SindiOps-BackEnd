@@ -9,4 +9,6 @@ public interface ISupabaseAuthService
         Guid userId, string email, string password, string nome, string cargo);
     Task SyncUserMetadataAsync(Guid userId, string nome, string cargo);
     Task<RecoveryLinkData?> GenerateRecoveryLinkAsync(string email, string redirectTo);
+    Task DeleteUserAsync(Guid userId);
+    Task<DateTimeOffset?> GetLastSignInAtAsync(Guid userId);
 }

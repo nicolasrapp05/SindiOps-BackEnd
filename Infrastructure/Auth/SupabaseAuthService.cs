@@ -113,6 +113,74 @@ public class SupabaseAuthService : ISupabaseAuthService
         }
     }
 
+    public async Task DeleteUserAsync(Guid userId)
+    {
+        try
+        {
+            var client = _httpClientFactory.CreateClient();
+            using var req = new HttpRequestMessage(
+                HttpMethod.Delete,
+                $"{BaseUrl}/auth/v1/admin/users/{userId}");
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ServiceKey);
+            req.Headers.Add("apikey", ServiceKey);
+
+            var response = await client.SendAsync(req);
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadAsStringAsync();
+                _logger.LogWarning(
+                    "Supabase Auth: falha ao remover usuário {UserId} | status {Status} | {Error}",
+                    userId, response.StatusCode, err);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Supabase Auth: erro ao remover usuário {UserId}", userId);
+        }
+    }
+
+    public async Task<DateTimeOffset?> GetLastSignInAtAsync(Guid userId)
+    {
+        try
+        {
+            var client = _httpClientFactory.CreateClient();
+            using var req = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{BaseUrl}/auth/v1/admin/users/{userId}");
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ServiceKey);
+            req.Headers.Add("apikey", ServiceKey);
+
+            var response = await client.SendAsync(req);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "Supabase Auth: falha ao consultar usuário {UserId} | status {Status}",
+                    userId, response.StatusCode);
+                return null;
+            }
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+
+            if (!doc.RootElement.TryGetProperty("last_sign_in_at", out var lastSignInProp))
+                return null;
+
+            if (lastSignInProp.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+                return null;
+
+            var raw = lastSignInProp.GetString();
+            if (string.IsNullOrWhiteSpace(raw))
+                return null;
+
+            return DateTimeOffset.TryParse(raw, out var parsed) ? parsed : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Supabase Auth: erro ao consultar last_sign_in_at do usuário {UserId}", userId);
+            return null;
+        }
+    }
+
     private string BaseUrl => _configuration["Supabase:Url"]!.TrimEnd('/');
 
     private string ServiceKey => _configuration["Supabase:ServiceRoleKey"]!;

@@ -10,6 +10,7 @@ public class FuncionarioProfile : Profile
     {
         CreateMap<Funcionario, FuncionarioResponse>()
             .ForMember(d => d.ConviteEnviado, o => o.Ignore())
+            .ForMember(d => d.ConvitePendente, o => o.Ignore())
             .ForMember(d => d.Condominios, o => o.MapFrom(s =>
                 s.CondominiosAcesso
                     .OrderBy(fc => fc.Condominio.Nome)

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using SindiOps.API.DTOs.Requests;
 using SindiOps.API.DTOs.Responses;
+using SindiOps.API.Helpers;
 using SindiOps.API.Infrastructure.Auth;
 using SindiOps.API.Infrastructure.Data;
 using SindiOps.API.Infrastructure.Email;
@@ -99,7 +100,8 @@ public class AuthService : IAuthService
         if (recovery is null)
             return;
 
-        var (htmlContent, plainBody) = PasswordResetEmailBuilder.Build(email, recovery.EmailOtp, frontendUrl);
+        var (htmlContent, plainBody) = PasswordResetEmailBuilder.Build(
+            email, recovery.EmailOtp, frontendUrl, recovery.HashedToken);
         var sent = await _emailService.SendAuthHtmlAsync(
             email,
             "Redefinir sua senha — SindiOps",
@@ -112,6 +114,5 @@ public class AuthService : IAuthService
         }
     }
 
-    private string GetFrontendUrl() =>
-        _configuration["Cors:AllowedOrigin"] ?? "http://localhost:5173";
+    private string GetFrontendUrl() => FrontendUrlResolver.Resolve(_configuration);
 }

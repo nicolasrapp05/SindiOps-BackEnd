@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SindiOps.API.Authorization;
 using SindiOps.API.DTOs.Requests;
 using SindiOps.API.Helpers;
 using SindiOps.API.Services.Interfaces;
@@ -7,6 +8,7 @@ using SindiOps.API.Services.Interfaces;
 namespace SindiOps.API.Controllers;
 
 [Authorize]
+[RequireAdminCargo]
 [ApiController]
 [Route("api/v1/solicitacoes-compra")]
 public class SolicitacoesCompraController : ControllerBase
@@ -51,6 +53,7 @@ public class SolicitacoesCompraController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/aprovar")]
+    [RequireSindicoCargo]
     public async Task<IActionResult> Aprovar(Guid id)
     {
         var userId = User.GetUserId();
