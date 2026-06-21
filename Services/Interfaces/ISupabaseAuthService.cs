@@ -4,7 +4,6 @@ using SindiOps.API.Infrastructure.Auth;
 
 public interface ISupabaseAuthService
 {
-    Task CreateUserAsync(Guid userId, string email, string nome, string cargo);
     Task CreateUserWithPasswordAsync(
         Guid userId, string email, string password, string nome, string cargo);
     Task SyncUserMetadataAsync(Guid userId, string nome, string cargo);

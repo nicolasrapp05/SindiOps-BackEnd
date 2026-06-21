@@ -56,14 +56,7 @@ public class EmailTemplatesController : ControllerBase
     public async Task<IActionResult> Delete(Guid id)
     {
         var userId = User.GetUserId();
-        try
-        {
-            await _service.DeleteAsync(id, userId);
-            return Ok(ApiResponse<object?>.Ok(null, "Template removido com sucesso"));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ApiResponse<object>.Fail(ex.Message));
-        }
+        await _service.DeleteAsync(id, userId);
+        return Ok(ApiResponse<object?>.Ok(null, "Template removido com sucesso"));
     }
 }

@@ -12,4 +12,5 @@ public interface IFuncionarioService
     Task<FuncionarioResponse> UpdateAsync(Guid id, UpdateFuncionarioRequest request, Guid sindicoId);
     Task<FuncionarioResponse> AtivarAsync(Guid id, Guid sindicoId);
     Task<FuncionarioResponse> DesativarAsync(Guid id, Guid sindicoId, Guid currentUserId);
+    Task DeleteAsync(Guid id, Guid sindicoId, Guid currentUserId);
 }

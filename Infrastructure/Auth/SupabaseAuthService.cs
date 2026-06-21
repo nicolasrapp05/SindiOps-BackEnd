@@ -23,21 +23,6 @@ public class SupabaseAuthService : ISupabaseAuthService
         _logger = logger;
     }
 
-    public Task CreateUserAsync(Guid userId, string email, string nome, string cargo) =>
-        SendAsync(
-            HttpMethod.Post,
-            $"{BaseUrl}/auth/v1/admin/users",
-            new
-            {
-                id = userId,
-                email,
-                password = Guid.NewGuid().ToString("N") + "Aa1!",
-                email_confirm = true,
-                user_metadata = BuildMetadata(nome, cargo),
-            },
-            allowConflict: true,
-            context: $"criar usuário {email}");
-
     public Task CreateUserWithPasswordAsync(
         Guid userId, string email, string password, string nome, string cargo) =>
         SendRequiredAsync(

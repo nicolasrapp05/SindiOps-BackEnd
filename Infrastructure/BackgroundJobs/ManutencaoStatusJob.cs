@@ -4,11 +4,12 @@ using SindiOps.API.Infrastructure.Data;
 
 namespace SindiOps.API.Infrastructure.BackgroundJobs;
 
-public class ManutencaoStatusJob : IHostedService, IDisposable
+public class ManutencaoStatusJob : BackgroundService
 {
+    private static readonly TimeSpan Interval = TimeSpan.FromHours(24);
+
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<ManutencaoStatusJob> _logger;
-    private Timer? _timer;
 
     public ManutencaoStatusJob(
         IServiceProvider serviceProvider,
@@ -18,32 +19,21 @@ public class ManutencaoStatusJob : IHostedService, IDisposable
         _logger = logger;
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("[ManutencaoStatusJob] Iniciado. Executará a cada 24h.");
 
-        // executa imediatamente ao iniciar, depois repete a cada 24 horas
-        _timer = new Timer(
-            callback: async _ => await ExecuteAsync(),
-            state: null,
-            dueTime: TimeSpan.Zero,
-            period: TimeSpan.FromHours(24));
+        using var timer = new PeriodicTimer(Interval);
 
-        return Task.CompletedTask;
+        await RunOnceAsync(stoppingToken);
+
+        while (await timer.WaitForNextTickAsync(stoppingToken))
+        {
+            await RunOnceAsync(stoppingToken);
+        }
     }
 
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        _logger.LogInformation("[ManutencaoStatusJob] Encerrado.");
-        _timer?.Change(Timeout.Infinite, 0);
-        return Task.CompletedTask;
-    }
-
-    public void Dispose() => _timer?.Dispose();
-
-    // ── execução principal ──────────────────────────────────────────────────
-
-    private async Task ExecuteAsync()
+    private async Task RunOnceAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("[ManutencaoStatusJob] Iniciando atualização de status...");
 
@@ -55,7 +45,7 @@ public class ManutencaoStatusJob : IHostedService, IDisposable
             var hoje = DateOnly.FromDateTime(DateTime.UtcNow);
             var limiteUpcoming = hoje.AddDays(30);
 
-            var manutencoes = await db.ManutencoesObrigatorias.ToListAsync();
+            var manutencoes = await db.ManutencoesObrigatorias.ToListAsync(stoppingToken);
 
             var atualizados = 0;
             foreach (var m in manutencoes)
@@ -73,11 +63,15 @@ public class ManutencaoStatusJob : IHostedService, IDisposable
                 }
             }
 
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(stoppingToken);
 
             _logger.LogInformation(
                 "[ManutencaoStatusJob] Concluído em {Data}. Total: {Total} | Atualizados: {Atualizados}",
                 hoje, manutencoes.Count, atualizados);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            _logger.LogInformation("[ManutencaoStatusJob] Encerrado.");
         }
         catch (Exception ex)
         {

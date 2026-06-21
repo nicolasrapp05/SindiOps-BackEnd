@@ -9,12 +9,17 @@ public class CurrentUserService : ICurrentUserService
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly SindiOpsDbContext _db;
+    private readonly ILogger<CurrentUserService> _logger;
     private string? _cargo;
 
-    public CurrentUserService(IHttpContextAccessor httpContextAccessor, SindiOpsDbContext db)
+    public CurrentUserService(
+        IHttpContextAccessor httpContextAccessor,
+        SindiOpsDbContext db,
+        ILogger<CurrentUserService> logger)
     {
         _httpContextAccessor = httpContextAccessor;
         _db = db;
+        _logger = logger;
     }
 
     public Guid UserId =>
@@ -30,6 +35,7 @@ public class CurrentUserService : ICurrentUserService
             _db,
             UserId,
             _httpContextAccessor.HttpContext?.User,
+            _logger,
             ct);
 
         return _cargo;
@@ -40,4 +46,7 @@ public class CurrentUserService : ICurrentUserService
 
     public async Task<bool> IsSindicoAsync(CancellationToken ct = default) =>
         await GetCargoAsync(ct) == CargoConstants.Sindico;
+
+    public Task<Guid> GetSindicoScopeIdAsync(CancellationToken ct = default) =>
+        UsuarioSindicoScope.ResolveSindicoIdAsync(_db, UserId, ct);
 }
