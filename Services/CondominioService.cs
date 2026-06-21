@@ -153,9 +153,10 @@ public class CondominioService : ICondominioService
         await _db.SaveChangesAsync();
     }
 
-    public async Task<List<BlocoResponse>> GetBlocosAsync(Guid condominioId, Guid sindicoId)
+    public async Task<List<BlocoResponse>> GetBlocosAsync(Guid condominioId, Guid sindicoId, Guid userId)
     {
-        await VerificarPropriedadeAsync(condominioId, sindicoId);
+        if (!await UsuarioSindicoScope.FuncionarioPodeAcessarCondominioAsync(_db, userId, sindicoId, condominioId))
+            throw new KeyNotFoundException("Condomínio não encontrado");
 
         var blocos = await _db.Blocos
             .Include(b => b.Unidades)

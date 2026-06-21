@@ -10,7 +10,7 @@ public interface ICondominioService
     Task<CondominioResponse> CreateAsync(CreateCondominioRequest request, Guid sindicoId);
     Task<CondominioResponse> UpdateAsync(Guid id, CreateCondominioRequest request, Guid sindicoId);
     Task DeleteAsync(Guid id, Guid sindicoId);
-    Task<List<BlocoResponse>> GetBlocosAsync(Guid condominioId, Guid sindicoId);
+    Task<List<BlocoResponse>> GetBlocosAsync(Guid condominioId, Guid sindicoId, Guid userId);
     Task<BlocoResponse> CreateBlocoAsync(Guid condominioId, CreateBlocoRequest request, Guid sindicoId);
     Task<UnidadeResponse> CreateUnidadeAsync(Guid condominioId, Guid blocoId, CreateUnidadeRequest request, Guid sindicoId);
     Task DeleteBlocoAsync(Guid condominioId, Guid blocoId, Guid sindicoId);
