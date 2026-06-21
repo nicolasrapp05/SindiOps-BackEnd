@@ -10,7 +10,6 @@ using SindiOps.API.Services.Interfaces;
 namespace SindiOps.API.Controllers;
 
 [Authorize]
-[RequireAdminCargo]
 [ApiController]
 [Route("api/v1/condominios")]
 public class CondominiosController : ControllerBase
@@ -32,6 +31,7 @@ public class CondominiosController : ControllerBase
 
     // GET api/v1/condominios
     [HttpGet]
+    [RequireAllCargo]
     public async Task<IActionResult> GetAll()
     {
         var userId = User.GetUserId();
@@ -42,6 +42,7 @@ public class CondominiosController : ControllerBase
 
     // GET api/v1/condominios/{id}
     [HttpGet("{id:guid}")]
+    [RequireAllCargo]
     public async Task<IActionResult> GetById(Guid id)
     {
         var userId = User.GetUserId();
@@ -52,6 +53,7 @@ public class CondominiosController : ControllerBase
 
     // POST api/v1/condominios
     [HttpPost]
+    [RequireAdminCargo]
     public async Task<IActionResult> Create([FromBody] CreateCondominioRequest request)
     {
         var sindicoId = await GetSindicoScopeIdAsync();
@@ -61,6 +63,7 @@ public class CondominiosController : ControllerBase
 
     // PUT api/v1/condominios/{id}
     [HttpPut("{id:guid}")]
+    [RequireAdminCargo]
     public async Task<IActionResult> Update(Guid id, [FromBody] CreateCondominioRequest request)
     {
         var sindicoId = await GetSindicoScopeIdAsync();
@@ -70,6 +73,7 @@ public class CondominiosController : ControllerBase
 
     // DELETE api/v1/condominios/{id}
     [HttpDelete("{id:guid}")]
+    [RequireAdminCargo]
     public async Task<IActionResult> Delete(Guid id)
     {
         var sindicoId = await GetSindicoScopeIdAsync();
@@ -86,15 +90,18 @@ public class CondominiosController : ControllerBase
 
     // GET api/v1/condominios/{id}/blocos
     [HttpGet("{id:guid}/blocos")]
+    [RequireAllCargo]
     public async Task<IActionResult> GetBlocos(Guid id)
     {
+        var userId = User.GetUserId();
         var sindicoId = await GetSindicoScopeIdAsync();
-        var data = await _service.GetBlocosAsync(id, sindicoId);
+        var data = await _service.GetBlocosAsync(id, sindicoId, userId);
         return Ok(ApiResponse<object>.Ok(data));
     }
 
     // POST api/v1/condominios/{id}/blocos
     [HttpPost("{id:guid}/blocos")]
+    [RequireAdminCargo]
     public async Task<IActionResult> CreateBloco(Guid id, [FromBody] CreateBlocoRequest request)
     {
         var sindicoId = await GetSindicoScopeIdAsync();
@@ -104,6 +111,7 @@ public class CondominiosController : ControllerBase
 
     // POST api/v1/condominios/{condominioId}/blocos/{blocoId}/unidades
     [HttpPost("{condominioId:guid}/blocos/{blocoId:guid}/unidades")]
+    [RequireAdminCargo]
     public async Task<IActionResult> CreateUnidade(
         Guid condominioId, Guid blocoId, [FromBody] CreateUnidadeRequest request)
     {
@@ -114,6 +122,7 @@ public class CondominiosController : ControllerBase
 
     // DELETE api/v1/condominios/{condominioId}/blocos/{blocoId}
     [HttpDelete("{condominioId:guid}/blocos/{blocoId:guid}")]
+    [RequireAdminCargo]
     public async Task<IActionResult> DeleteBloco(Guid condominioId, Guid blocoId)
     {
         var sindicoId = await GetSindicoScopeIdAsync();
@@ -130,6 +139,7 @@ public class CondominiosController : ControllerBase
 
     // PUT api/v1/condominios/{condominioId}/blocos/{blocoId}
     [HttpPut("{condominioId:guid}/blocos/{blocoId:guid}")]
+    [RequireAdminCargo]
     public async Task<IActionResult> UpdateBloco(
         Guid condominioId, Guid blocoId, [FromBody] UpdateBlocoRequest request)
     {
@@ -140,6 +150,7 @@ public class CondominiosController : ControllerBase
 
     // PUT api/v1/condominios/{condominioId}/blocos/{blocoId}/unidades/{unidadeId}
     [HttpPut("{condominioId:guid}/blocos/{blocoId:guid}/unidades/{unidadeId:guid}")]
+    [RequireAdminCargo]
     public async Task<IActionResult> UpdateUnidade(
         Guid condominioId, Guid blocoId, Guid unidadeId, [FromBody] UpdateUnidadeRequest request)
     {
@@ -150,6 +161,7 @@ public class CondominiosController : ControllerBase
 
     // DELETE api/v1/condominios/{condominioId}/blocos/{blocoId}/unidades/{unidadeId}
     [HttpDelete("{condominioId:guid}/blocos/{blocoId:guid}/unidades/{unidadeId:guid}")]
+    [RequireAdminCargo]
     public async Task<IActionResult> DeleteUnidade(Guid condominioId, Guid blocoId, Guid unidadeId)
     {
         var sindicoId = await GetSindicoScopeIdAsync();
