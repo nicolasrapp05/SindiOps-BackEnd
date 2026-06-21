@@ -1,8 +1,9 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Text;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -66,7 +67,7 @@ builder.Services.AddCors(options =>
             .AllowAnyHeader()
             .AllowCredentials()));
 
-// ── Swagger / OpenAPI ─────────────────────────────────────────────────────────
+// ── Swagger (Swashbuckle) ─────────────────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -80,8 +81,13 @@ builder.Services.Configure<PasswordResetRateLimitOptions>(
     builder.Configuration.GetSection(PasswordResetRateLimitOptions.SectionName));
 builder.Services.Configure<ConviteResendRateLimitOptions>(
     builder.Configuration.GetSection(ConviteResendRateLimitOptions.SectionName));
+builder.Services.Configure<CadastroSindicoRateLimitOptions>(
+    builder.Configuration.GetSection(CadastroSindicoRateLimitOptions.SectionName));
+builder.Services.Configure<ForwardedHeadersSettings>(
+    builder.Configuration.GetSection(ForwardedHeadersSettings.SectionName));
 builder.Services.AddSingleton<IPasswordResetRateLimiter, PasswordResetRateLimiter>();
 builder.Services.AddSingleton<IConviteResendRateLimiter, ConviteResendRateLimiter>();
+builder.Services.AddSingleton<ICadastroSindicoRateLimiter, CadastroSindicoRateLimiter>();
 
 // ── Resend (email transacional) ───────────────────────────────────────────────
 builder.Services.AddOptions();
@@ -117,10 +123,9 @@ builder.Services.AddScoped<IReportGenerator, ReportGenerator>();
 builder.Services.AddScoped<IEmailService, ResendEmailService>();
 builder.Services.AddScoped<ITemplateResolver, TemplateResolver>();
 builder.Services.AddHttpClient<IStorageService, SupabaseStorageService>();
-// IHttpClientFactory disponível para FuncionarioService (chamada à Admin API do Supabase)
 builder.Services.AddHttpClient();
 
-// ── Background Service — atualização diária de status de manutenções ─────────
+// ── Background jobs — atualização diária de status (manutenções e contratos) ─
 builder.Services.AddHostedService<ManutencaoStatusJob>();
 builder.Services.AddHostedService<ContratoStatusJob>();
 
@@ -130,6 +135,18 @@ builder.Services.AddControllers();
 // ─────────────────────────────────────────────────────────────────────────────
 var app = builder.Build();
 // ─────────────────────────────────────────────────────────────────────────────
+
+var forwardedHeadersEnabled = app.Configuration
+    .GetSection(ForwardedHeadersSettings.SectionName)
+    .GetValue<bool>("Enabled");
+
+if (forwardedHeadersEnabled)
+{
+    app.UseForwardedHeaders(new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    });
+}
 
 if (app.Environment.IsDevelopment())
 {

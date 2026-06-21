@@ -16,6 +16,7 @@ public class AuthService : IAuthService
     private readonly ISupabaseAuthService _supabaseAuth;
     private readonly IEmailService _emailService;
     private readonly IPasswordResetRateLimiter _passwordResetRateLimiter;
+    private readonly ICadastroSindicoRateLimiter _cadastroSindicoRateLimiter;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AuthService> _logger;
@@ -25,6 +26,7 @@ public class AuthService : IAuthService
         ISupabaseAuthService supabaseAuth,
         IEmailService emailService,
         IPasswordResetRateLimiter passwordResetRateLimiter,
+        ICadastroSindicoRateLimiter cadastroSindicoRateLimiter,
         IHttpContextAccessor httpContextAccessor,
         IConfiguration configuration,
         ILogger<AuthService> logger)
@@ -33,6 +35,7 @@ public class AuthService : IAuthService
         _supabaseAuth = supabaseAuth;
         _emailService = emailService;
         _passwordResetRateLimiter = passwordResetRateLimiter;
+        _cadastroSindicoRateLimiter = cadastroSindicoRateLimiter;
         _httpContextAccessor = httpContextAccessor;
         _configuration = configuration;
         _logger = logger;
@@ -40,6 +43,21 @@ public class AuthService : IAuthService
 
     public async Task<CadastroSindicoResponse> CadastroSindicoAsync(CadastroSindicoRequest request)
     {
+        var clientIp = ClientIpResolver.Resolve(_httpContextAccessor.HttpContext, _configuration);
+
+        if (!_cadastroSindicoRateLimiter.TryAcquire(clientIp))
+        {
+            _logger.LogWarning(
+                "Cadastro de síndico bloqueado por rate limit | ip {ClientIp}",
+                clientIp);
+            throw new FluentValidation.ValidationException(new[]
+            {
+                new FluentValidation.Results.ValidationFailure(
+                    string.Empty,
+                    "Muitas tentativas de cadastro. Tente novamente mais tarde.")
+            });
+        }
+
         var email = request.Email.Trim();
         var emailNormalizado = email.ToLowerInvariant();
 
@@ -83,7 +101,7 @@ public class AuthService : IAuthService
     public async Task EsqueciSenhaAsync(EsqueciSenhaRequest request)
     {
         var email = request.Email.Trim();
-        var clientIp = ClientIpResolver.Resolve(_httpContextAccessor.HttpContext);
+        var clientIp = ClientIpResolver.Resolve(_httpContextAccessor.HttpContext, _configuration);
 
         if (!_passwordResetRateLimiter.TryAcquire(email, clientIp))
         {

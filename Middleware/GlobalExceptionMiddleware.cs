@@ -54,6 +54,10 @@ public class GlobalExceptionMiddleware
                 HttpStatusCode.Forbidden,
                 ApiResponse<object>.Fail(uae.Message)
             ),
+            InvalidOperationException ioe => (
+                HttpStatusCode.BadRequest,
+                ApiResponse<object>.Fail(ioe.Message)
+            ),
             _ => (
                 HttpStatusCode.InternalServerError,
                 ApiResponse<object>.Fail("Erro interno do servidor")

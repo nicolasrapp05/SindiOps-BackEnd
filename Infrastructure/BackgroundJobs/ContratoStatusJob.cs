@@ -5,11 +5,12 @@ using SindiOps.API.Infrastructure.Data;
 
 namespace SindiOps.API.Infrastructure.BackgroundJobs;
 
-public class ContratoStatusJob : IHostedService, IDisposable
+public class ContratoStatusJob : BackgroundService
 {
+    private static readonly TimeSpan Interval = TimeSpan.FromHours(24);
+
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<ContratoStatusJob> _logger;
-    private Timer? _timer;
 
     public ContratoStatusJob(
         IServiceProvider serviceProvider,
@@ -19,29 +20,21 @@ public class ContratoStatusJob : IHostedService, IDisposable
         _logger = logger;
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("[ContratoStatusJob] Iniciado. Executará a cada 24h.");
 
-        _timer = new Timer(
-            callback: async _ => await ExecuteAsync(),
-            state: null,
-            dueTime: TimeSpan.Zero,
-            period: TimeSpan.FromHours(24));
+        using var timer = new PeriodicTimer(Interval);
 
-        return Task.CompletedTask;
+        await RunOnceAsync(stoppingToken);
+
+        while (await timer.WaitForNextTickAsync(stoppingToken))
+        {
+            await RunOnceAsync(stoppingToken);
+        }
     }
 
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        _logger.LogInformation("[ContratoStatusJob] Encerrado.");
-        _timer?.Change(Timeout.Infinite, 0);
-        return Task.CompletedTask;
-    }
-
-    public void Dispose() => _timer?.Dispose();
-
-    private async Task ExecuteAsync()
+    private async Task RunOnceAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("[ContratoStatusJob] Iniciando atualização de status...");
 
@@ -53,7 +46,7 @@ public class ContratoStatusJob : IHostedService, IDisposable
             var hoje = DateOnly.FromDateTime(DateTime.UtcNow);
             var contratos = await db.Contratos
                 .Where(c => c.Status != ContratoStatus.Cancelled)
-                .ToListAsync();
+                .ToListAsync(stoppingToken);
 
             var atualizados = 0;
             foreach (var contrato in contratos)
@@ -63,11 +56,15 @@ public class ContratoStatusJob : IHostedService, IDisposable
             }
 
             if (atualizados > 0)
-                await db.SaveChangesAsync();
+                await db.SaveChangesAsync(stoppingToken);
 
             _logger.LogInformation(
                 "[ContratoStatusJob] Concluído em {Data}. Total: {Total} | Atualizados: {Atualizados}",
                 hoje, contratos.Count, atualizados);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            _logger.LogInformation("[ContratoStatusJob] Encerrado.");
         }
         catch (Exception ex)
         {

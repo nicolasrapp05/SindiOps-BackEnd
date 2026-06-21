@@ -3,8 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using SindiOps.API.Authorization;
 using SindiOps.API.DTOs.Requests;
 using SindiOps.API.Helpers;
-using SindiOps.API.Infrastructure.Data;
-using SindiOps.API.Services;
 using SindiOps.API.Services.Interfaces;
 
 namespace SindiOps.API.Controllers;
@@ -15,18 +13,12 @@ namespace SindiOps.API.Controllers;
 public class CondominiosController : ControllerBase
 {
     private readonly ICondominioService _service;
-    private readonly SindiOpsDbContext _db;
+    private readonly ICurrentUserService _currentUser;
 
-    public CondominiosController(ICondominioService service, SindiOpsDbContext db)
+    public CondominiosController(ICondominioService service, ICurrentUserService currentUser)
     {
         _service = service;
-        _db = db;
-    }
-
-    private async Task<Guid> GetSindicoScopeIdAsync()
-    {
-        var userId = User.GetUserId();
-        return await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
+        _currentUser = currentUser;
     }
 
     // GET api/v1/condominios
@@ -34,8 +26,8 @@ public class CondominiosController : ControllerBase
     [RequireAllCargo]
     public async Task<IActionResult> GetAll()
     {
-        var userId = User.GetUserId();
-        var sindicoId = await GetSindicoScopeIdAsync();
+        var userId = _currentUser.UserId;
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.GetAllAsync(sindicoId, userId);
         return Ok(ApiResponse<object>.Ok(data));
     }
@@ -45,8 +37,8 @@ public class CondominiosController : ControllerBase
     [RequireAllCargo]
     public async Task<IActionResult> GetById(Guid id)
     {
-        var userId = User.GetUserId();
-        var sindicoId = await GetSindicoScopeIdAsync();
+        var userId = _currentUser.UserId;
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.GetByIdAsync(id, sindicoId, userId);
         return Ok(ApiResponse<object>.Ok(data));
     }
@@ -56,7 +48,7 @@ public class CondominiosController : ControllerBase
     [RequireAdminCargo]
     public async Task<IActionResult> Create([FromBody] CreateCondominioRequest request)
     {
-        var sindicoId = await GetSindicoScopeIdAsync();
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.CreateAsync(request, sindicoId);
         return StatusCode(201, ApiResponse<object>.Ok(data, "Condomínio criado com sucesso"));
     }
@@ -66,7 +58,7 @@ public class CondominiosController : ControllerBase
     [RequireAdminCargo]
     public async Task<IActionResult> Update(Guid id, [FromBody] CreateCondominioRequest request)
     {
-        var sindicoId = await GetSindicoScopeIdAsync();
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.UpdateAsync(id, request, sindicoId);
         return Ok(ApiResponse<object>.Ok(data));
     }
@@ -76,16 +68,9 @@ public class CondominiosController : ControllerBase
     [RequireAdminCargo]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var sindicoId = await GetSindicoScopeIdAsync();
-        try
-        {
-            await _service.DeleteAsync(id, sindicoId);
-            return Ok(ApiResponse<object?>.Ok(null, "Condomínio removido com sucesso"));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ApiResponse<object>.Fail(ex.Message));
-        }
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
+        await _service.DeleteAsync(id, sindicoId);
+        return Ok(ApiResponse<object?>.Ok(null, "Condomínio removido com sucesso"));
     }
 
     // GET api/v1/condominios/{id}/blocos
@@ -93,8 +78,8 @@ public class CondominiosController : ControllerBase
     [RequireAllCargo]
     public async Task<IActionResult> GetBlocos(Guid id)
     {
-        var userId = User.GetUserId();
-        var sindicoId = await GetSindicoScopeIdAsync();
+        var userId = _currentUser.UserId;
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.GetBlocosAsync(id, sindicoId, userId);
         return Ok(ApiResponse<object>.Ok(data));
     }
@@ -104,7 +89,7 @@ public class CondominiosController : ControllerBase
     [RequireAdminCargo]
     public async Task<IActionResult> CreateBloco(Guid id, [FromBody] CreateBlocoRequest request)
     {
-        var sindicoId = await GetSindicoScopeIdAsync();
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.CreateBlocoAsync(id, request, sindicoId);
         return StatusCode(201, ApiResponse<object>.Ok(data, "Bloco criado com sucesso"));
     }
@@ -115,7 +100,7 @@ public class CondominiosController : ControllerBase
     public async Task<IActionResult> CreateUnidade(
         Guid condominioId, Guid blocoId, [FromBody] CreateUnidadeRequest request)
     {
-        var sindicoId = await GetSindicoScopeIdAsync();
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.CreateUnidadeAsync(condominioId, blocoId, request, sindicoId);
         return StatusCode(201, ApiResponse<object>.Ok(data, "Unidade criada com sucesso"));
     }
@@ -125,16 +110,9 @@ public class CondominiosController : ControllerBase
     [RequireAdminCargo]
     public async Task<IActionResult> DeleteBloco(Guid condominioId, Guid blocoId)
     {
-        var sindicoId = await GetSindicoScopeIdAsync();
-        try
-        {
-            await _service.DeleteBlocoAsync(condominioId, blocoId, sindicoId);
-            return Ok(ApiResponse<object?>.Ok(null, "Bloco removido com sucesso"));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ApiResponse<object>.Fail(ex.Message));
-        }
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
+        await _service.DeleteBlocoAsync(condominioId, blocoId, sindicoId);
+        return Ok(ApiResponse<object?>.Ok(null, "Bloco removido com sucesso"));
     }
 
     // PUT api/v1/condominios/{condominioId}/blocos/{blocoId}
@@ -143,7 +121,7 @@ public class CondominiosController : ControllerBase
     public async Task<IActionResult> UpdateBloco(
         Guid condominioId, Guid blocoId, [FromBody] UpdateBlocoRequest request)
     {
-        var sindicoId = await GetSindicoScopeIdAsync();
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.UpdateBlocoAsync(condominioId, blocoId, request, sindicoId);
         return Ok(ApiResponse<object>.Ok(data));
     }
@@ -154,7 +132,7 @@ public class CondominiosController : ControllerBase
     public async Task<IActionResult> UpdateUnidade(
         Guid condominioId, Guid blocoId, Guid unidadeId, [FromBody] UpdateUnidadeRequest request)
     {
-        var sindicoId = await GetSindicoScopeIdAsync();
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.UpdateUnidadeAsync(condominioId, blocoId, unidadeId, request, sindicoId);
         return Ok(ApiResponse<object>.Ok(data));
     }
@@ -164,15 +142,8 @@ public class CondominiosController : ControllerBase
     [RequireAdminCargo]
     public async Task<IActionResult> DeleteUnidade(Guid condominioId, Guid blocoId, Guid unidadeId)
     {
-        var sindicoId = await GetSindicoScopeIdAsync();
-        try
-        {
-            await _service.DeleteUnidadeAsync(condominioId, blocoId, unidadeId, sindicoId);
-            return Ok(ApiResponse<object?>.Ok(null, "Unidade removida com sucesso"));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ApiResponse<object>.Fail(ex.Message));
-        }
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
+        await _service.DeleteUnidadeAsync(condominioId, blocoId, unidadeId, sindicoId);
+        return Ok(ApiResponse<object?>.Ok(null, "Unidade removida com sucesso"));
     }
 }

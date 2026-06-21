@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SindiOps.API.Constants;
 using SindiOps.API.Helpers;
 using SindiOps.API.Infrastructure.Data;
@@ -12,10 +13,14 @@ public static class UserCargoResolver
         SindiOpsDbContext db,
         Guid userId,
         System.Security.Claims.ClaimsPrincipal? user,
+        ILogger? logger = null,
         CancellationToken ct = default)
     {
         if (await db.Sindicos.AsNoTracking().AnyAsync(s => s.Id == userId, ct))
+        {
+            logger?.LogDebug("Cargo resolvido via DB (Sindicos) para usuário {UserId}", userId);
             return CargoConstants.Sindico;
+        }
 
         var cargoFuncionario = await db.Funcionarios.AsNoTracking()
             .Where(f => f.Id == userId)
@@ -23,12 +28,18 @@ public static class UserCargoResolver
             .FirstOrDefaultAsync(ct);
 
         if (!string.IsNullOrWhiteSpace(cargoFuncionario))
+        {
+            logger?.LogDebug("Cargo resolvido via DB (Funcionarios) para usuário {UserId}", userId);
             return cargoFuncionario;
+        }
 
-        return ResolveFromClaims(user);
+        logger?.LogDebug("Cargo resolvido via JWT/claims para usuário {UserId}", userId);
+        return ResolveFromClaims(user, logger);
     }
 
-    private static string ResolveFromClaims(System.Security.Claims.ClaimsPrincipal? user)
+    private static string ResolveFromClaims(
+        System.Security.Claims.ClaimsPrincipal? user,
+        ILogger? logger)
     {
         if (user is null)
             return string.Empty;
@@ -51,9 +62,9 @@ public static class UserCargoResolver
                     return NormalizeCargo(cargo);
             }
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            /* fallback vazio */
+            logger?.LogWarning(ex, "Falha ao parsear user_metadata para resolução de cargo");
         }
 
         return string.Empty;

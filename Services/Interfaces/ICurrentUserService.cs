@@ -6,4 +6,5 @@ public interface ICurrentUserService
     string Cargo { get; }
     Task<string> GetCargoAsync(CancellationToken ct = default);
     Task<bool> IsSindicoAsync(CancellationToken ct = default);
+    Task<Guid> GetSindicoScopeIdAsync(CancellationToken ct = default);
 }

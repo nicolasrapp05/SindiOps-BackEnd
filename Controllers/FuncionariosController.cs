@@ -1,11 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using SindiOps.API.Authorization;
 using SindiOps.API.DTOs.Requests;
 using SindiOps.API.Helpers;
-using SindiOps.API.Infrastructure.Data;
-using SindiOps.API.Services;
 using SindiOps.API.Services.Interfaces;
 
 namespace SindiOps.API.Controllers;
@@ -17,18 +14,12 @@ namespace SindiOps.API.Controllers;
 public class FuncionariosController : ControllerBase
 {
     private readonly IFuncionarioService _service;
-    private readonly SindiOpsDbContext _db;
+    private readonly ICurrentUserService _currentUser;
 
-    public FuncionariosController(IFuncionarioService service, SindiOpsDbContext db)
+    public FuncionariosController(IFuncionarioService service, ICurrentUserService currentUser)
     {
         _service = service;
-        _db = db;
-    }
-
-    private async Task<Guid> GetSindicoScopeIdAsync()
-    {
-        var userId = User.GetUserId();
-        return await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
+        _currentUser = currentUser;
     }
 
     // GET api/v1/funcionarios?cargo=&ativo=
@@ -37,7 +28,7 @@ public class FuncionariosController : ControllerBase
         [FromQuery] string? cargo,
         [FromQuery] bool? ativo)
     {
-        var sindicoId = await GetSindicoScopeIdAsync();
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.GetAllAsync(sindicoId, cargo, ativo);
         return Ok(ApiResponse<object>.Ok(data));
     }
@@ -46,7 +37,7 @@ public class FuncionariosController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
-        var sindicoId = await GetSindicoScopeIdAsync();
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.GetByIdAsync(id, sindicoId);
         return Ok(ApiResponse<object>.Ok(data));
     }
@@ -55,7 +46,7 @@ public class FuncionariosController : ControllerBase
     [HttpPost("convidar")]
     public async Task<IActionResult> Convidar([FromBody] ConvidarFuncionarioRequest request)
     {
-        var sindicoId = await GetSindicoScopeIdAsync();
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.ConvidarAsync(request, sindicoId);
         return StatusCode(201, ApiResponse<object>.Ok(data, "Funcionário convidado com sucesso"));
     }
@@ -64,7 +55,7 @@ public class FuncionariosController : ControllerBase
     [HttpPost("{id:guid}/reenviar-convite")]
     public async Task<IActionResult> ReenviarConvite(Guid id)
     {
-        var sindicoId = await GetSindicoScopeIdAsync();
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.ReenviarConviteAsync(id, sindicoId);
         return Ok(ApiResponse<object>.Ok(data, "Convite reenviado com sucesso"));
     }
@@ -73,7 +64,7 @@ public class FuncionariosController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateFuncionarioRequest request)
     {
-        var sindicoId = await GetSindicoScopeIdAsync();
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.UpdateAsync(id, request, sindicoId);
         return Ok(ApiResponse<object>.Ok(data));
     }
@@ -82,7 +73,7 @@ public class FuncionariosController : ControllerBase
     [HttpPatch("{id:guid}/ativar")]
     public async Task<IActionResult> Ativar(Guid id)
     {
-        var sindicoId = await GetSindicoScopeIdAsync();
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.AtivarAsync(id, sindicoId);
         return Ok(ApiResponse<object>.Ok(data, "Funcionário ativado com sucesso"));
     }
@@ -91,16 +82,17 @@ public class FuncionariosController : ControllerBase
     [HttpPatch("{id:guid}/desativar")]
     public async Task<IActionResult> Desativar(Guid id)
     {
-        var sindicoId = await GetSindicoScopeIdAsync();
-        var currentUserId = User.GetUserId();
-        try
-        {
-            var data = await _service.DesativarAsync(id, sindicoId, currentUserId);
-            return Ok(ApiResponse<object>.Ok(data, "Funcionário desativado com sucesso"));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return StatusCode(403, ApiResponse<object>.Fail(ex.Message));
-        }
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
+        var data = await _service.DesativarAsync(id, sindicoId, _currentUser.UserId);
+        return Ok(ApiResponse<object>.Ok(data, "Funcionário desativado com sucesso"));
+    }
+
+    // DELETE api/v1/funcionarios/{id}
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
+        await _service.DeleteAsync(id, sindicoId, _currentUser.UserId);
+        return Ok(ApiResponse<object?>.Ok(null, "Funcionário removido com sucesso"));
     }
 }
