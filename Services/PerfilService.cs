@@ -1,8 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using SindiOps.API.Constants;
 using SindiOps.API.DTOs.Requests;
 using SindiOps.API.DTOs.Responses;
-using SindiOps.API.Entities;
 using SindiOps.API.Infrastructure.Data;
 using SindiOps.API.Services.Interfaces;
 
@@ -30,63 +28,36 @@ public class PerfilService : IPerfilService
     {
         var nome = request.Nome.Trim();
 
-        var sindico = await _db.Sindicos.FirstOrDefaultAsync(s => s.Id == userId);
-        if (sindico is not null)
-        {
-            sindico.Nome = nome;
-            sindico.AtualizadoEm = DateTime.UtcNow;
-            await _db.SaveChangesAsync();
+        var usuario = await _db.Usuarios
+            .Include(u => u.Pessoa)
+            .FirstOrDefaultAsync(u => u.Id == userId)
+            ?? throw new UnauthorizedAccessException("Usuário não encontrado");
 
-            var response = MapSindico(sindico);
-            await _supabaseAuth.SyncUserMetadataAsync(userId, response.Nome, response.Cargo);
-            return response;
-        }
+        usuario.Pessoa.Nome = nome;
+        usuario.Pessoa.AtualizadoEm = DateTime.UtcNow;
+        usuario.AtualizadoEm = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
 
-        var funcionario = await _db.Funcionarios.FirstOrDefaultAsync(f => f.Id == userId);
-        if (funcionario is not null)
-        {
-            funcionario.Nome = nome;
-            funcionario.AtualizadoEm = DateTime.UtcNow;
-            await _db.SaveChangesAsync();
-
-            var response = MapFuncionario(funcionario);
-            await _supabaseAuth.SyncUserMetadataAsync(userId, response.Nome, response.Cargo);
-            return response;
-        }
-
-        throw new UnauthorizedAccessException("Usuário não encontrado");
+        var response = Map(usuario);
+        await _supabaseAuth.SyncUserMetadataAsync(userId, response.Nome, response.Cargo);
+        return response;
     }
 
     private async Task<PerfilResponse> LoadPerfilAsync(Guid userId)
     {
-        var sindico = await _db.Sindicos.AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == userId);
+        var usuario = await _db.Usuarios.AsNoTracking()
+            .Include(u => u.Pessoa)
+            .FirstOrDefaultAsync(u => u.Id == userId)
+            ?? throw new UnauthorizedAccessException("Usuário não encontrado");
 
-        if (sindico is not null)
-            return MapSindico(sindico);
-
-        var funcionario = await _db.Funcionarios.AsNoTracking()
-            .FirstOrDefaultAsync(f => f.Id == userId);
-
-        if (funcionario is not null)
-            return MapFuncionario(funcionario);
-
-        throw new UnauthorizedAccessException("Usuário não encontrado");
+        return Map(usuario);
     }
 
-    private static PerfilResponse MapSindico(Sindico sindico) => new()
+    private static PerfilResponse Map(Entities.Usuario usuario) => new()
     {
-        Id = sindico.Id,
-        Nome = sindico.Nome,
-        Email = sindico.Email,
-        Cargo = CargoConstants.Sindico,
-    };
-
-    private static PerfilResponse MapFuncionario(Funcionario funcionario) => new()
-    {
-        Id = funcionario.Id,
-        Nome = funcionario.Nome,
-        Email = funcionario.Email,
-        Cargo = funcionario.Cargo,
+        Id = usuario.Id,
+        Nome = usuario.Pessoa.Nome,
+        Email = usuario.Pessoa.Email,
+        Cargo = usuario.Cargo,
     };
 }

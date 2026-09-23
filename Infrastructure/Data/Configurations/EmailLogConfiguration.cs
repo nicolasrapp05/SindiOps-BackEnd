@@ -12,8 +12,6 @@ public class EmailLogConfiguration : IEntityTypeConfiguration<EmailLog>
         {
             t.HasCheckConstraint("ck_email_logs_status_entrega",
                 "status_entrega IN ('sent', 'delivered', 'failed')");
-            t.HasCheckConstraint("ck_email_logs_enviado_xor",
-                "(enviado_funcionario_id IS NOT NULL AND enviado_sindico_id IS NULL) OR (enviado_funcionario_id IS NULL AND enviado_sindico_id IS NOT NULL)");
         });
 
         builder.HasKey(e => e.Id);
@@ -26,8 +24,7 @@ public class EmailLogConfiguration : IEntityTypeConfiguration<EmailLog>
         builder.Property(e => e.Assunto).HasColumnName("assunto").IsRequired();
         builder.Property(e => e.CorpoResolvido).HasColumnName("corpo_resolvido").IsRequired();
         builder.Property(e => e.ValorMulta).HasColumnName("valor_multa").HasColumnType("numeric");
-        builder.Property(e => e.EnviadoPorFuncionarioId).HasColumnName("enviado_funcionario_id");
-        builder.Property(e => e.EnviadoPorSindicoId).HasColumnName("enviado_sindico_id");
+        builder.Property(e => e.EnviadoPorId).HasColumnName("enviado_por_id").IsRequired();
         builder.Property(e => e.EnviadoEm).HasColumnName("enviado_em").IsRequired();
         builder.Property(e => e.StatusEntrega).HasColumnName("status_entrega").HasDefaultValue("sent");
         builder.Property(e => e.CriadoEm).HasColumnName("criado_em").HasDefaultValueSql("now()");
@@ -36,6 +33,7 @@ public class EmailLogConfiguration : IEntityTypeConfiguration<EmailLog>
         builder.HasIndex(e => e.MoradorId);
         builder.HasIndex(e => e.OcorrenciaId);
         builder.HasIndex(e => e.StatusEntrega);
+        builder.HasIndex(e => e.EnviadoPorId);
 
         builder.HasOne(e => e.Sindico)
             .WithMany(s => s.EmailLogs)
@@ -60,14 +58,9 @@ public class EmailLogConfiguration : IEntityTypeConfiguration<EmailLog>
         // Alinha com o query filter global de Morador (soft delete) — evita aviso EF10622.
         builder.HasQueryFilter(e => e.Morador.DeletadoEm == null);
 
-        builder.HasOne(e => e.EnviadoPorFuncionario)
+        builder.HasOne(e => e.EnviadoPor)
             .WithMany()
-            .HasForeignKey(e => e.EnviadoPorFuncionarioId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasOne(e => e.EnviadoPorSindico)
-            .WithMany()
-            .HasForeignKey(e => e.EnviadoPorSindicoId)
+            .HasForeignKey(e => e.EnviadoPorId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

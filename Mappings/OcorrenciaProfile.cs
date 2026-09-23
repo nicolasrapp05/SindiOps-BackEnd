@@ -10,10 +10,6 @@ public class OcorrenciaProfile : Profile
 
     public OcorrenciaProfile()
     {
-        CreateMap<Sindico, PessoaRefResponse>()
-            .ForMember(d => d.Id, o => o.MapFrom(s => s.Id))
-            .ForMember(d => d.Nome, o => o.MapFrom(s => s.Nome));
-
         CreateMap<Ocorrencia, OcorrenciaResponse>()
             .ForMember(d => d.Descricao, o => o.MapFrom(s =>
                 s.Descricao.Length > DescricaoListagemMax
@@ -22,21 +18,18 @@ public class OcorrenciaProfile : Profile
             .ForMember(d => d.Morador, o => o.MapFrom(s => s.Morador))
             .ForMember(d => d.Bloco, o => o.MapFrom(s => s.Bloco))
             .ForMember(d => d.Unidade, o => o.MapFrom(s => s.Unidade))
-            .ForMember(d => d.RegistradoPor, o => o.MapFrom(s =>
-                s.RegistradoPorFuncionario != null
-                    ? new PessoaRefResponse
-                    {
-                        Id = s.RegistradoPorFuncionario.Id,
-                        Nome = s.RegistradoPorFuncionario.Nome,
-                    }
-                    : new PessoaRefResponse
-                    {
-                        Id = s.RegistradoPorSindico!.Id,
-                        Nome = s.RegistradoPorSindico.Nome,
-                    }))
+            .ForMember(d => d.RegistradoPor, o => o.MapFrom(s => new PessoaRefResponse
+            {
+                Id = s.RegistradoPor.Id,
+                Nome = s.RegistradoPor.Pessoa.Nome,
+                Cargo = s.RegistradoPor.Cargo,
+            }))
             .ForMember(d => d.TotalMidias, o => o.MapFrom(s => s.Midias.Count));
 
         CreateMap<Morador, MoradorOcorrenciaRefResponse>()
+            .ForMember(d => d.Nome, o => o.MapFrom(s => s.Pessoa.Nome))
+            .ForMember(d => d.Email, o => o.MapFrom(s => s.Pessoa.Email))
+            .ForMember(d => d.Telefone, o => o.MapFrom(s => s.Pessoa.Telefone))
             .ForMember(d => d.Unidade, o => o.MapFrom(s => s.Unidade));
 
         CreateMap<Unidade, UnidadeNumeroRefResponse>();

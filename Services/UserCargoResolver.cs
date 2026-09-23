@@ -16,21 +16,15 @@ public static class UserCargoResolver
         ILogger? logger = null,
         CancellationToken ct = default)
     {
-        if (await db.Sindicos.AsNoTracking().AnyAsync(s => s.Id == userId, ct))
-        {
-            logger?.LogDebug("Cargo resolvido via DB (Sindicos) para usuário {UserId}", userId);
-            return CargoConstants.Sindico;
-        }
-
-        var cargoFuncionario = await db.Funcionarios.AsNoTracking()
-            .Where(f => f.Id == userId)
-            .Select(f => f.Cargo)
+        var cargoDb = await db.Usuarios.AsNoTracking()
+            .Where(u => u.Id == userId)
+            .Select(u => u.Cargo)
             .FirstOrDefaultAsync(ct);
 
-        if (!string.IsNullOrWhiteSpace(cargoFuncionario))
+        if (!string.IsNullOrWhiteSpace(cargoDb))
         {
-            logger?.LogDebug("Cargo resolvido via DB (Funcionarios) para usuário {UserId}", userId);
-            return cargoFuncionario;
+            logger?.LogDebug("Cargo resolvido via DB (Usuarios) para usuário {UserId}", userId);
+            return cargoDb;
         }
 
         logger?.LogDebug("Cargo resolvido via JWT/claims para usuário {UserId}", userId);

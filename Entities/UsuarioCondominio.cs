@@ -1,11 +1,11 @@
 namespace SindiOps.API.Entities;
 
-public class FuncionarioCondominio
+public class UsuarioCondominio
 {
-    public Guid FuncionarioId { get; set; }
+    public Guid UsuarioId { get; set; }
     public Guid CondominioId { get; set; }
     public DateTime CriadoEm { get; set; }
 
-    public Funcionario Funcionario { get; set; } = null!;
+    public Usuario Usuario { get; set; } = null!;
     public Condominio Condominio { get; set; } = null!;
 }

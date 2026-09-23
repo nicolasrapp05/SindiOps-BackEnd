@@ -41,15 +41,14 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
 
         var query = _db.SolicitacoesManutencao
             .Include(s => s.Fornecedor)
-            .Include(s => s.SolicitadoPorFuncionario)
-            .Include(s => s.SolicitadoPorSindico)
+            .Include(s => s.SolicitadoPor).ThenInclude(u => u.Pessoa)
             .Where(s => s.CondominioId == q.CondominioId);
 
         if (!string.IsNullOrWhiteSpace(q.Search))
         {
             var term = q.Search.Trim().ToLower();
             query = query.Where(s =>
-                s.Local.ToLower().Contains(term) ||
+                (s.Local != null && s.Local.ToLower().Contains(term)) ||
                 (s.Descricao != null && s.Descricao.ToLower().Contains(term)) ||
                 (s.Fornecedor != null && s.Fornecedor.Nome.ToLower().Contains(term)));
         }
@@ -58,7 +57,7 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
             query = query.Where(s => s.Status == q.Status);
 
         if (!string.IsNullOrWhiteSpace(q.TipoServico))
-            query = query.Where(s => s.Tipo == q.TipoServico);
+            query = query.Where(s => s.TipoManutencao == q.TipoServico);
 
         if (!string.IsNullOrWhiteSpace(q.Responsavel))
             query = query.Where(s => s.Responsavel == q.Responsavel);
@@ -87,8 +86,7 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
 
         var s = await _db.SolicitacoesManutencao
             .Include(x => x.Fornecedor)
-            .Include(x => x.SolicitadoPorFuncionario)
-            .Include(x => x.SolicitadoPorSindico)
+            .Include(x => x.SolicitadoPor).ThenInclude(u => u.Pessoa)
             .FirstOrDefaultAsync(x => x.Id == id && x.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 
@@ -105,13 +103,6 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
                 new ValidationFailure("", "Utilizador não autorizado a registrar solicitações de manutenção neste condomínio")
             });
 
-        Guid? solicitadoFuncionarioId = null;
-        Guid? solicitadoSindicoId = null;
-        if (await UsuarioSindicoScope.IsFuncionarioDoSindicoAsync(_db, userId, sindicoId))
-            solicitadoFuncionarioId = userId;
-        else
-            solicitadoSindicoId = sindicoId;
-
         var condominioOk = await _db.Condominios
             .AnyAsync(c => c.Id == request.CondominioId && c.SindicoId == sindicoId);
         if (!condominioOk)
@@ -127,11 +118,11 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
         var entity = new SolicitacaoManutencao
         {
             CondominioId = request.CondominioId,
-            SolicitadoPorFuncionarioId = solicitadoFuncionarioId,
-            SolicitadoPorSindicoId = solicitadoSindicoId,
+            SolicitadoPorId = userId,
+            Tipo = SolicitacaoTipo.Manutencao,
             FornecedorId = fornecedorId,
             Local = request.Local,
-            Tipo = request.TipoServico,
+            TipoManutencao = request.TipoServico,
             Responsavel = request.Responsavel,
             Descricao = request.Descricao,
             Status = SolicitacaoStatus.Nova,
@@ -142,8 +133,8 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
         await _db.SaveChangesAsync();
 
         await _db.Entry(entity).Reference(x => x.Fornecedor).LoadAsync();
-        await _db.Entry(entity).Reference(x => x.SolicitadoPorFuncionario).LoadAsync();
-        await _db.Entry(entity).Reference(x => x.SolicitadoPorSindico).LoadAsync();
+        await _db.Entry(entity).Reference(x => x.SolicitadoPor).LoadAsync();
+        await _db.Entry(entity.SolicitadoPor).Reference(u => u.Pessoa).LoadAsync();
 
         return _mapper.Map<SolicitacaoManutencaoResponse>(entity);
     }
@@ -154,8 +145,7 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
 
         var entity = await _db.SolicitacoesManutencao
             .Include(s => s.Fornecedor)
-            .Include(s => s.SolicitadoPorFuncionario)
-            .Include(s => s.SolicitadoPorSindico)
+            .Include(s => s.SolicitadoPor).ThenInclude(u => u.Pessoa)
             .FirstOrDefaultAsync(s => s.Id == id && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 
@@ -177,7 +167,7 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
         entity.CondominioId = request.CondominioId;
         entity.FornecedorId = fornecedorId;
         entity.Local = request.Local;
-        entity.Tipo = request.TipoServico;
+        entity.TipoManutencao = request.TipoServico;
         entity.Responsavel = request.Responsavel;
         entity.Descricao = request.Descricao;
         entity.AtualizadoEm = DateTime.UtcNow;
@@ -194,8 +184,7 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
 
         var entity = await _db.SolicitacoesManutencao
             .Include(s => s.Fornecedor)
-            .Include(s => s.SolicitadoPorFuncionario)
-            .Include(s => s.SolicitadoPorSindico)
+            .Include(s => s.SolicitadoPor).ThenInclude(u => u.Pessoa)
             .FirstOrDefaultAsync(s => s.Id == id && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 

@@ -104,6 +104,7 @@ public class RelatorioService : IRelatorioService
         var (ini, fim) = ParseIntervaloUtc(request.Filtros);
 
         var query = _db.Cotacoes.AsNoTracking()
+            .Include(c => c.Itens).ThenInclude(i => i.Item)
             .Include(c => c.SolicitacaoCompra)
             .Include(c => c.Fornecedor)
             .Where(c => c.SolicitacaoCompra.CondominioId == request.CondominioId);
@@ -120,20 +121,19 @@ public class RelatorioService : IRelatorioService
             "Item", "Categoria", "Fornecedor", "Valor unit.", "Valor total", "Selecionada", "Criado em"
         };
 
-        var linhas = list.Select(c =>
+        var linhas = list.SelectMany(c =>
         {
-            var s = c.SolicitacaoCompra;
             var fornecedorNome = c.Fornecedor?.Nome ?? c.NomeEmpresa ?? "—";
-            return (IReadOnlyList<string>)new[]
+            return c.Itens.Select(linha => (IReadOnlyList<string>)new[]
             {
-                s.Item,
-                s.Categoria,
+                linha.Item.Descricao,
+                linha.Item.Categoria,
                 fornecedorNome,
-                c.ValorUnitario.ToString("F2", CultureInfo.InvariantCulture),
-                c.ValorTotal.ToString("F2", CultureInfo.InvariantCulture),
+                linha.ValorUnitario.ToString("F2", CultureInfo.InvariantCulture),
+                linha.ValorTotal.ToString("F2", CultureInfo.InvariantCulture),
                 c.Selecionada ? "Sim" : "Não",
                 c.CriadoEm.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) + " UTC"
-            };
+            });
         }).ToList();
 
         return new ReportDocumentModel
@@ -151,6 +151,7 @@ public class RelatorioService : IRelatorioService
         var statusFiltro = GetFiltro(request.Filtros, "status");
 
         var query = _db.SolicitacoesCompra.AsNoTracking()
+            .Include(s => s.Itens)
             .Where(s => s.CondominioId == request.CondominioId);
 
         if (ini.HasValue)
@@ -163,15 +164,15 @@ public class RelatorioService : IRelatorioService
         var list = await query.OrderByDescending(s => s.CriadoEm).ToListAsync();
 
         var colunas = new[] { "Item", "Categoria", "Quantidade", "Status", "Reposição", "Criado em" };
-        var linhas = list.Select(s => (IReadOnlyList<string>)new[]
+        var linhas = list.SelectMany(s => s.Itens.Select(item => (IReadOnlyList<string>)new[]
         {
-            s.Item,
-            s.Categoria,
-            s.Quantidade.ToString("F2", CultureInfo.InvariantCulture),
+            item.Descricao,
+            item.Categoria,
+            item.Quantidade.ToString("F2", CultureInfo.InvariantCulture),
             s.Status,
-            s.EReposicao ? "Sim" : "Não",
+            item.EReposicao ? "Sim" : "Não",
             s.CriadoEm.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) + " UTC"
-        }).ToList();
+        })).ToList();
 
         return new ReportDocumentModel
         {

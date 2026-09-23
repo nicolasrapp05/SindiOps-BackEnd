@@ -20,16 +20,22 @@ public class CreateSolicitacaoCompraRequestValidator : AbstractValidator<CreateS
         RuleFor(x => x.CondominioId)
             .NotEmpty().WithMessage("CondominioId é obrigatório");
 
-        RuleFor(x => x.Categoria)
-            .NotEmpty().WithMessage("Categoria é obrigatória")
-            .Must(c => SolicitacaoCompraCategoria.Todas.Contains(c))
-            .WithMessage("Categoria inválida");
+        RuleFor(x => x.Itens)
+            .NotEmpty().WithMessage("Informe ao menos um item");
 
-        RuleFor(x => x.Item)
-            .NotEmpty().WithMessage("Item é obrigatório");
+        RuleForEach(x => x.Itens).ChildRules(item =>
+        {
+            item.RuleFor(i => i.Categoria)
+                .NotEmpty().WithMessage("Categoria é obrigatória")
+                .Must(c => SolicitacaoCompraCategoria.Todas.Contains(c))
+                .WithMessage("Categoria inválida");
 
-        RuleFor(x => x.Quantidade)
-            .GreaterThan(0).WithMessage("Quantidade deve ser maior que zero");
+            item.RuleFor(i => i.Descricao)
+                .NotEmpty().WithMessage("Descrição do item é obrigatória");
+
+            item.RuleFor(i => i.Quantidade)
+                .GreaterThan(0).WithMessage("Quantidade deve ser maior que zero");
+        });
 
         RuleFor(x => x.TipoAprovacao)
             .NotEmpty().WithMessage("TipoAprovacao é obrigatório")
@@ -69,7 +75,16 @@ public class CreateCotacaoRequestValidator : AbstractValidator<CreateCotacaoRequ
             .When(x => x.FornecedorId.HasValue)
             .WithMessage("NomeEmpresa não deve ser informado quando FornecedorId é informado");
 
-        RuleFor(x => x.ValorUnitario)
-            .GreaterThan(0).WithMessage("ValorUnitario deve ser maior que zero");
+        RuleFor(x => x.Itens)
+            .NotEmpty().WithMessage("Informe o valor de cada item");
+
+        RuleForEach(x => x.Itens).ChildRules(item =>
+        {
+            item.RuleFor(i => i.ItemId)
+                .NotEmpty().WithMessage("ItemId é obrigatório");
+
+            item.RuleFor(i => i.ValorUnitario)
+                .GreaterThan(0).WithMessage("ValorUnitario deve ser maior que zero");
+        });
     }
 }

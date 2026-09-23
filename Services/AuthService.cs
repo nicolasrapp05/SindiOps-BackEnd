@@ -61,9 +61,7 @@ public class AuthService : IAuthService
         var email = request.Email.Trim();
         var emailNormalizado = email.ToLowerInvariant();
 
-        var emailEmUso =
-            await _db.Sindicos.AnyAsync(s => s.Email.ToLower() == emailNormalizado)
-            || await _db.Funcionarios.AnyAsync(f => f.Email.ToLower() == emailNormalizado);
+        var emailEmUso = await UsuarioSindicoScope.EmailDeLoginEmUsoAsync(_db, emailNormalizado);
 
         if (emailEmUso)
         {
@@ -79,15 +77,25 @@ public class AuthService : IAuthService
         await _supabaseAuth.CreateUserWithPasswordAsync(
             id, email, request.Senha, nome, Constants.CargoConstants.Sindico);
 
-        var sindico = new Entities.Sindico
+        var pessoa = new Entities.Pessoa
         {
-            Id = id,
+            Id = Guid.NewGuid(),
             Nome = nome,
             Email = email,
             CriadoEm = DateTime.UtcNow,
         };
 
-        _db.Sindicos.Add(sindico);
+        var sindico = new Entities.Usuario
+        {
+            Id = id,
+            PessoaId = pessoa.Id,
+            Cargo = Constants.CargoConstants.Sindico,
+            Ativo = true,
+            CriadoEm = DateTime.UtcNow,
+        };
+
+        _db.Pessoas.Add(pessoa);
+        _db.Usuarios.Add(sindico);
         await _db.SaveChangesAsync();
 
         return new CadastroSindicoResponse

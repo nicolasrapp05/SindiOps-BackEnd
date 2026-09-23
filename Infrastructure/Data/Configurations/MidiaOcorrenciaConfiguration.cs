@@ -12,8 +12,6 @@ public class MidiaOcorrenciaConfiguration : IEntityTypeConfiguration<MidiaOcorre
         {
             t.HasCheckConstraint("ck_midias_tipo_arquivo",
                 "tipo_arquivo IN ('image', 'video')");
-            t.HasCheckConstraint("ck_midias_enviado_xor",
-                "(enviado_funcionario_id IS NOT NULL AND enviado_sindico_id IS NULL) OR (enviado_funcionario_id IS NULL AND enviado_sindico_id IS NOT NULL)");
         });
 
         builder.HasKey(m => m.Id);
@@ -21,8 +19,7 @@ public class MidiaOcorrenciaConfiguration : IEntityTypeConfiguration<MidiaOcorre
         builder.Property(m => m.OcorrenciaId).HasColumnName("ocorrencia_id").IsRequired();
         builder.Property(m => m.UrlArquivo).HasColumnName("url_arquivo").IsRequired();
         builder.Property(m => m.TipoArquivo).HasColumnName("tipo_arquivo").IsRequired();
-        builder.Property(m => m.EnviadoPorFuncionarioId).HasColumnName("enviado_funcionario_id");
-        builder.Property(m => m.EnviadoPorSindicoId).HasColumnName("enviado_sindico_id");
+        builder.Property(m => m.EnviadoPorId).HasColumnName("enviado_por_id").IsRequired();
         builder.Property(m => m.CriadoEm).HasColumnName("criado_em").HasDefaultValueSql("now()");
 
         builder.HasIndex(m => m.OcorrenciaId);
@@ -32,14 +29,11 @@ public class MidiaOcorrenciaConfiguration : IEntityTypeConfiguration<MidiaOcorre
             .HasForeignKey(m => m.OcorrenciaId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(m => m.EnviadoPorFuncionario)
-            .WithMany()
-            .HasForeignKey(m => m.EnviadoPorFuncionarioId)
-            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(m => m.EnviadoPorId);
 
-        builder.HasOne(m => m.EnviadoPorSindico)
+        builder.HasOne(m => m.EnviadoPor)
             .WithMany()
-            .HasForeignKey(m => m.EnviadoPorSindicoId)
+            .HasForeignKey(m => m.EnviadoPorId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

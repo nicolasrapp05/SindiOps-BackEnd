@@ -6,7 +6,7 @@ public class ResendEmailService : IEmailService
 {
     private readonly IResend _resend;
     private readonly string _from;
-    private readonly string? _replyTo;
+    private readonly string _replyTo;
     private readonly ILogger<ResendEmailService> _logger;
 
     public ResendEmailService(

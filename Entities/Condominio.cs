@@ -15,14 +15,12 @@ public class Condominio
     public DateTime CriadoEm { get; set; }
     public DateTime? AtualizadoEm { get; set; }
 
-    public Sindico Sindico { get; set; } = null!;
+    public Usuario Sindico { get; set; } = null!;
     public ICollection<Bloco> Blocos { get; set; } = [];
     public ICollection<Unidade> Unidades { get; set; } = [];
-    public ICollection<Morador> Moradores { get; set; } = [];
     public ICollection<Contrato> Contratos { get; set; } = [];
     public ICollection<ManutencaoObrigatoria> ManutencoesObrigatorias { get; set; } = [];
-    public ICollection<SolicitacaoManutencao> SolicitacoesManutencao { get; set; } = [];
-    public ICollection<SolicitacaoCompra> SolicitacoesCompra { get; set; } = [];
+    public ICollection<Solicitacao> Solicitacoes { get; set; } = [];
     public ICollection<Ocorrencia> Ocorrencias { get; set; } = [];
-    public ICollection<FuncionarioCondominio> FuncionariosAcesso { get; set; } = [];
+    public ICollection<UsuarioCondominio> UsuariosAcesso { get; set; } = [];
 }

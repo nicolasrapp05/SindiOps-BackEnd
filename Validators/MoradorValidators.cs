@@ -1,4 +1,5 @@
 using FluentValidation;
+using SindiOps.API.Constants;
 using SindiOps.API.DTOs.Requests;
 
 namespace SindiOps.API.Validators;
@@ -20,6 +21,11 @@ public class CreateMoradorRequestValidator : AbstractValidator<CreateMoradorRequ
         RuleFor(x => x.Email)
             .NotEmpty().WithMessage("Email é obrigatório")
             .EmailAddress().WithMessage("Email inválido");
+
+        RuleFor(x => x.Papel)
+            .NotEmpty().WithMessage("Papel é obrigatório")
+            .Must(p => MoradorPapel.All.Contains(p))
+            .WithMessage("Papel inválido");
     }
 }
 
@@ -37,5 +43,10 @@ public class UpdateMoradorRequestValidator : AbstractValidator<UpdateMoradorRequ
 
         RuleFor(x => x.UnidadeId)
             .NotEmpty().WithMessage("UnidadeId é obrigatório");
+
+        RuleFor(x => x.Papel)
+            .NotEmpty().WithMessage("Papel é obrigatório")
+            .Must(p => MoradorPapel.All.Contains(p))
+            .WithMessage("Papel inválido");
     }
 }

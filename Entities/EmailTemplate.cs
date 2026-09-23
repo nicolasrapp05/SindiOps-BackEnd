@@ -11,6 +11,6 @@ public class EmailTemplate
     public DateTime CriadoEm { get; set; }
     public DateTime? AtualizadoEm { get; set; }
 
-    public Sindico Sindico { get; set; } = null!;
+    public Usuario Sindico { get; set; } = null!;
     public ICollection<EmailLog> EmailLogs { get; set; } = [];
 }

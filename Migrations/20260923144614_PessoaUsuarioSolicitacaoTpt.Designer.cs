@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SindiOps.API.Infrastructure.Data;
@@ -11,9 +12,11 @@ using SindiOps.API.Infrastructure.Data;
 namespace SindiOps.API.Migrations
 {
     [DbContext(typeof(SindiOpsDbContext))]
-    partial class SindiOpsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260923144614_PessoaUsuarioSolicitacaoTpt")]
+    partial class PessoaUsuarioSolicitacaoTpt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -932,10 +935,6 @@ namespace SindiOps.API.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("e_reposicao");
 
-                    b.Property<int>("Ordem")
-                        .HasColumnType("integer")
-                        .HasColumnName("ordem");
-
                     b.Property<decimal>("Quantidade")
                         .HasColumnType("numeric")
                         .HasColumnName("quantidade");
@@ -955,8 +954,6 @@ namespace SindiOps.API.Migrations
                     b.ToTable("solicitacao_compra_itens", null, t =>
                         {
                             t.HasCheckConstraint("ck_sol_compra_item_categoria", "categoria IN ('papelaria', 'mat_construcao', 'mat_limpeza', 'mat_especifico')");
-
-                            t.HasCheckConstraint("ck_sol_compra_item_ordem", "ordem >= 0");
 
                             t.HasCheckConstraint("ck_sol_compra_item_quantidade", "quantidade > 0");
                         });
