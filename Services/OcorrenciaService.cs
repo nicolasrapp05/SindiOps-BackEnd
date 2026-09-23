@@ -46,11 +46,11 @@ public class OcorrenciaService : IOcorrenciaService
             throw new KeyNotFoundException("Condomínio não encontrado");
 
         var query = _db.Ocorrencias
+            .Include(o => o.Morador)!.ThenInclude(m => m!.Pessoa)
             .Include(o => o.Morador)!.ThenInclude(m => m!.Unidade)
             .Include(o => o.Bloco)
             .Include(o => o.Unidade)
-            .Include(o => o.RegistradoPorFuncionario)
-            .Include(o => o.RegistradoPorSindico)
+            .Include(o => o.RegistradoPor).ThenInclude(u => u.Pessoa)
             .Include(o => o.Midias)
             .Where(o => o.CondominioId == q.CondominioId);
 
@@ -106,11 +106,11 @@ public class OcorrenciaService : IOcorrenciaService
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
 
         var entity = await _db.Ocorrencias
+            .Include(o => o.Morador)!.ThenInclude(m => m!.Pessoa)
             .Include(o => o.Morador)!.ThenInclude(m => m!.Unidade)
             .Include(o => o.Bloco)
             .Include(o => o.Unidade)
-            .Include(o => o.RegistradoPorFuncionario)
-            .Include(o => o.RegistradoPorSindico)
+            .Include(o => o.RegistradoPor).ThenInclude(u => u.Pessoa)
             .Include(o => o.Midias)
             .Include(o => o.EmailLogs)
             .FirstOrDefaultAsync(o => o.Id == id && o.Condominio.SindicoId == sindicoId)
@@ -151,18 +151,10 @@ public class OcorrenciaService : IOcorrenciaService
 
         var ocorreuEmUtc = ToPostgreTimestampUtc(request.OcorreuEm);
 
-        Guid? registradoFuncionarioId = null;
-        Guid? registradoSindicoId = null;
-        if (await UsuarioSindicoScope.IsFuncionarioDoSindicoAsync(_db, userId, sindicoId))
-            registradoFuncionarioId = userId;
-        else
-            registradoSindicoId = sindicoId;
-
         var entity = new Ocorrencia
         {
             CondominioId = request.CondominioId,
-            RegistradoPorFuncionarioId = registradoFuncionarioId,
-            RegistradoPorSindicoId = registradoSindicoId,
+            RegistradoPorId = userId,
             MoradorId = request.MoradorId,
             Origem = request.Origem,
             TipoLocal = request.TipoLocal,
@@ -227,11 +219,11 @@ public class OcorrenciaService : IOcorrenciaService
 
         var entity = await _db.Ocorrencias
             .Include(o => o.Midias)
+            .Include(o => o.Morador)!.ThenInclude(m => m!.Pessoa)
             .Include(o => o.Morador)!.ThenInclude(m => m!.Unidade)
             .Include(o => o.Bloco)
             .Include(o => o.Unidade)
-            .Include(o => o.RegistradoPorFuncionario)
-            .Include(o => o.RegistradoPorSindico)
+            .Include(o => o.RegistradoPor).ThenInclude(u => u.Pessoa)
             .FirstOrDefaultAsync(o => o.Id == id && o.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Ocorrência não encontrada");
 
@@ -285,13 +277,6 @@ public class OcorrenciaService : IOcorrenciaService
                 new ValidationFailure("", "Utilizador não autorizado a enviar mídias neste condomínio")
             });
 
-        Guid? enviadoFuncionarioId = null;
-        Guid? enviadoSindicoId = null;
-        if (await UsuarioSindicoScope.IsFuncionarioDoSindicoAsync(_db, userId, sindicoId))
-            enviadoFuncionarioId = userId;
-        else
-            enviadoSindicoId = sindicoId;
-
         var ocorrencia = await _db.Ocorrencias
             .FirstOrDefaultAsync(o => o.Id == ocorrenciaId && o.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Ocorrência não encontrada");
@@ -308,8 +293,7 @@ public class OcorrenciaService : IOcorrenciaService
             OcorrenciaId = ocorrenciaId,
             UrlArquivo = filePath,
             TipoArquivo = tipoNorm,
-            EnviadoPorFuncionarioId = enviadoFuncionarioId,
-            EnviadoPorSindicoId = enviadoSindicoId,
+            EnviadoPorId = userId,
             CriadoEm = DateTime.UtcNow
         };
 
@@ -352,13 +336,14 @@ public class OcorrenciaService : IOcorrenciaService
         await _db.Entry(entity).Reference(o => o.Morador).LoadAsync();
         if (entity.Morador != null)
         {
+            await _db.Entry(entity.Morador).Reference(m => m.Pessoa).LoadAsync();
             await _db.Entry(entity.Morador).Reference(m => m.Unidade).LoadAsync();
         }
 
         await _db.Entry(entity).Reference(o => o.Bloco).LoadAsync();
         await _db.Entry(entity).Reference(o => o.Unidade).LoadAsync();
-        await _db.Entry(entity).Reference(o => o.RegistradoPorFuncionario).LoadAsync();
-        await _db.Entry(entity).Reference(o => o.RegistradoPorSindico).LoadAsync();
+        await _db.Entry(entity).Reference(o => o.RegistradoPor).LoadAsync();
+        await _db.Entry(entity.RegistradoPor).Reference(u => u.Pessoa).LoadAsync();
     }
 
     private async Task ValidarCondominioAsync(Guid condominioId, Guid sindicoId)
@@ -374,7 +359,7 @@ public class OcorrenciaService : IOcorrenciaService
         if (moradorId.HasValue)
         {
             var ok = await _db.Moradores.AnyAsync(m =>
-                m.Id == moradorId && m.CondominioId == condominioId);
+                m.Id == moradorId && m.Unidade.CondominioId == condominioId);
             if (!ok)
                 throw new KeyNotFoundException("Morador inválido para este condomínio");
         }

@@ -9,5 +9,4 @@ public class Bloco
 
     public Condominio Condominio { get; set; } = null!;
     public ICollection<Unidade> Unidades { get; set; } = [];
-    public ICollection<Morador> Moradores { get; set; } = [];
 }

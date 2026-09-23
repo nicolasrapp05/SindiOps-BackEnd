@@ -29,6 +29,6 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> EsqueciSenha([FromBody] EsqueciSenhaRequest request)
     {
         await _service.EsqueciSenhaAsync(request);
-        return Ok(ApiResponse<object>.Ok(null, "Se existir uma conta com este email, você receberá instruções em breve."));
+        return Ok(ApiResponse<object?>.Ok(null, "Se existir uma conta com este email, você receberá instruções em breve."));
     }
 }

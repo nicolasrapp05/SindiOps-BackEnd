@@ -19,7 +19,7 @@ public class Fornecedor
     public DateTime CriadoEm { get; set; }
     public DateTime? AtualizadoEm { get; set; }
 
-    public Sindico Sindico { get; set; } = null!;
+    public Usuario Sindico { get; set; } = null!;
     public ICollection<ServicoFornecedor> Servicos { get; set; } = [];
     public ICollection<Contrato> Contratos { get; set; } = [];
 }

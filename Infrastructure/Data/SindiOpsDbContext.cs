@@ -7,9 +7,9 @@ public class SindiOpsDbContext : DbContext
 {
     public SindiOpsDbContext(DbContextOptions<SindiOpsDbContext> options) : base(options) { }
 
-    public DbSet<Sindico> Sindicos => Set<Sindico>();
-    public DbSet<Funcionario> Funcionarios => Set<Funcionario>();
-    public DbSet<FuncionarioCondominio> FuncionarioCondominios => Set<FuncionarioCondominio>();
+    public DbSet<Pessoa> Pessoas => Set<Pessoa>();
+    public DbSet<Usuario> Usuarios => Set<Usuario>();
+    public DbSet<UsuarioCondominio> UsuarioCondominios => Set<UsuarioCondominio>();
     public DbSet<Condominio> Condominios => Set<Condominio>();
     public DbSet<Bloco> Blocos => Set<Bloco>();
     public DbSet<Unidade> Unidades => Set<Unidade>();
@@ -18,9 +18,12 @@ public class SindiOpsDbContext : DbContext
     public DbSet<ServicoFornecedor> ServicosFornecedor => Set<ServicoFornecedor>();
     public DbSet<Contrato> Contratos => Set<Contrato>();
     public DbSet<ManutencaoObrigatoria> ManutencoesObrigatorias => Set<ManutencaoObrigatoria>();
+    public DbSet<Solicitacao> Solicitacoes => Set<Solicitacao>();
     public DbSet<SolicitacaoManutencao> SolicitacoesManutencao => Set<SolicitacaoManutencao>();
     public DbSet<SolicitacaoCompra> SolicitacoesCompra => Set<SolicitacaoCompra>();
+    public DbSet<SolicitacaoCompraItem> SolicitacaoCompraItens => Set<SolicitacaoCompraItem>();
     public DbSet<Cotacao> Cotacoes => Set<Cotacao>();
+    public DbSet<CotacaoItem> CotacaoItens => Set<CotacaoItem>();
     public DbSet<Ocorrencia> Ocorrencias => Set<Ocorrencia>();
     public DbSet<MidiaOcorrencia> MidiasOcorrencia => Set<MidiaOcorrencia>();
     public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();

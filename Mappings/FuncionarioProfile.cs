@@ -8,7 +8,9 @@ public class FuncionarioProfile : Profile
 {
     public FuncionarioProfile()
     {
-        CreateMap<Funcionario, FuncionarioResponse>()
+        CreateMap<Usuario, FuncionarioResponse>()
+            .ForMember(d => d.Nome, o => o.MapFrom(s => s.Pessoa.Nome))
+            .ForMember(d => d.Email, o => o.MapFrom(s => s.Pessoa.Email))
             .ForMember(d => d.ConviteEnviado, o => o.Ignore())
             .ForMember(d => d.ConvitePendente, o => o.Ignore())
             .ForMember(d => d.Condominios, o => o.MapFrom(s =>

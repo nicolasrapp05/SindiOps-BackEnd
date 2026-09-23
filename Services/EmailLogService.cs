@@ -24,18 +24,17 @@ public class EmailLogService : IEmailLogService
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
 
         var query = _db.EmailLogs.AsNoTracking()
-            .Include(e => e.Morador)
+            .Include(e => e.Morador).ThenInclude(m => m.Pessoa)
             .Include(e => e.Ocorrencia)
             .Include(e => e.Template)
-            .Include(e => e.EnviadoPorFuncionario)
-            .Include(e => e.EnviadoPorSindico)
+            .Include(e => e.EnviadoPor).ThenInclude(u => u.Pessoa)
             .Where(e => e.SindicoId == sindicoId);
 
         if (q.CondominioId.HasValue)
         {
             var cid = q.CondominioId.Value;
             query = query.Where(e =>
-                e.Morador.CondominioId == cid ||
+                e.Morador.Unidade.CondominioId == cid ||
                 (e.Ocorrencia != null && e.Ocorrencia.CondominioId == cid));
         }
 
@@ -55,7 +54,7 @@ public class EmailLogService : IEmailLogService
         {
             var term = q.Search.Trim().ToLower();
             query = query.Where(e =>
-                e.Morador.Nome.ToLower().Contains(term) ||
+                e.Morador.Pessoa.Nome.ToLower().Contains(term) ||
                 e.EmailDestinatario.ToLower().Contains(term));
         }
 
@@ -97,11 +96,10 @@ public class EmailLogService : IEmailLogService
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
 
         var entity = await _db.EmailLogs.AsNoTracking()
-            .Include(e => e.Morador)
+            .Include(e => e.Morador).ThenInclude(m => m.Pessoa)
             .Include(e => e.Ocorrencia)
             .Include(e => e.Template)
-            .Include(e => e.EnviadoPorFuncionario)
-            .Include(e => e.EnviadoPorSindico)
+            .Include(e => e.EnviadoPor).ThenInclude(u => u.Pessoa)
             .FirstOrDefaultAsync(e => e.Id == id && e.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Registo de e-mail não encontrado");
 

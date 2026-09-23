@@ -18,15 +18,12 @@ public class OcorrenciaConfiguration : IEntityTypeConfiguration<Ocorrencia>
                 "tipo_local IS NULL OR tipo_local IN ('area_comum','estacionamento','portaria','jardim','salao_festas','hall','corredores','vizinhos','outro')");
             t.HasCheckConstraint("ck_ocorrencias_tipo_ocorrencia",
                 "tipo_ocorrencia IS NULL OR tipo_ocorrencia IN ('barulho','pets','garagem','alteracao_fachada','objetos_corredores','objetos_janelas_sacadas','outro')");
-            t.HasCheckConstraint("ck_ocorrencias_registrado_xor",
-                "(registrado_funcionario_id IS NOT NULL AND registrado_sindico_id IS NULL) OR (registrado_funcionario_id IS NULL AND registrado_sindico_id IS NOT NULL)");
         });
 
         builder.HasKey(o => o.Id);
         builder.Property(o => o.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
         builder.Property(o => o.CondominioId).HasColumnName("condominio_id").IsRequired();
-        builder.Property(o => o.RegistradoPorFuncionarioId).HasColumnName("registrado_funcionario_id");
-        builder.Property(o => o.RegistradoPorSindicoId).HasColumnName("registrado_sindico_id");
+        builder.Property(o => o.RegistradoPorId).HasColumnName("registrado_por_id").IsRequired();
         builder.Property(o => o.MoradorId).HasColumnName("morador_id");
         builder.Property(o => o.Origem).HasColumnName("origem").IsRequired();
         builder.Property(o => o.TipoLocal).HasColumnName("tipo_local");
@@ -48,14 +45,11 @@ public class OcorrenciaConfiguration : IEntityTypeConfiguration<Ocorrencia>
             .HasForeignKey(o => o.CondominioId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(o => o.RegistradoPorFuncionario)
-            .WithMany()
-            .HasForeignKey(o => o.RegistradoPorFuncionarioId)
-            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(o => o.RegistradoPorId);
 
-        builder.HasOne(o => o.RegistradoPorSindico)
+        builder.HasOne(o => o.RegistradoPor)
             .WithMany()
-            .HasForeignKey(o => o.RegistradoPorSindicoId)
+            .HasForeignKey(o => o.RegistradoPorId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(o => o.Morador)

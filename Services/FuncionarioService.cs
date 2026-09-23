@@ -42,7 +42,8 @@ public class FuncionarioService : IFuncionarioService
 
     public async Task<List<FuncionarioResponse>> GetAllAsync(Guid sindicoId, string? cargo, bool? ativo)
     {
-        var query = _db.Funcionarios
+        var query = _db.Usuarios
+            .Include(f => f.Pessoa)
             .Include(f => f.CondominiosAcesso)
             .ThenInclude(fc => fc.Condominio)
             .Where(f => f.SindicoId == sindicoId);
@@ -54,7 +55,7 @@ public class FuncionarioService : IFuncionarioService
             query = query.Where(f => f.Ativo == ativo.Value);
 
         var responses = _mapper.Map<List<FuncionarioResponse>>(
-            await query.OrderBy(f => f.Nome).ToListAsync());
+            await query.OrderBy(f => f.Pessoa.Nome).ToListAsync());
 
         await EnrichConviteStatusAsync(responses);
         return responses;
@@ -62,7 +63,8 @@ public class FuncionarioService : IFuncionarioService
 
     public async Task<FuncionarioResponse> GetByIdAsync(Guid id, Guid sindicoId)
     {
-        var funcionario = await _db.Funcionarios
+        var funcionario = await _db.Usuarios
+            .Include(f => f.Pessoa)
             .Include(f => f.CondominiosAcesso)
             .ThenInclude(fc => fc.Condominio)
             .FirstOrDefaultAsync(f => f.Id == id && f.SindicoId == sindicoId)
@@ -79,9 +81,7 @@ public class FuncionarioService : IFuncionarioService
         var emailNormalizado = email.ToLowerInvariant();
         var nome = request.Nome.Trim();
 
-        var emailEmUso =
-            await _db.Sindicos.AnyAsync(s => s.Email.ToLower() == emailNormalizado)
-            || await _db.Funcionarios.AnyAsync(f => f.Email.ToLower() == emailNormalizado);
+        var emailEmUso = await UsuarioSindicoScope.EmailDeLoginEmUsoAsync(_db, emailNormalizado);
 
         if (emailEmUso)
         {
@@ -104,19 +104,40 @@ public class FuncionarioService : IFuncionarioService
 
         try
         {
-            var funcionario = new Funcionario
+            var pessoa = await _db.Pessoas
+                .FirstOrDefaultAsync(p =>
+                    p.Usuario == null &&
+                    p.Email.ToLower() == emailNormalizado &&
+                    p.Moradores.Any(m => m.Unidade.Condominio.SindicoId == sindicoId));
+
+            if (pessoa is null)
+            {
+                pessoa = new Pessoa
+                {
+                    Id = Guid.NewGuid(),
+                    Nome = nome,
+                    Email = email,
+                    CriadoEm = DateTime.UtcNow,
+                };
+                _db.Pessoas.Add(pessoa);
+            }
+            else
+            {
+                pessoa.Nome = nome;
+                pessoa.AtualizadoEm = DateTime.UtcNow;
+            }
+
+            var funcionario = new Usuario
             {
                 Id = funcionarioId,
+                PessoaId = pessoa.Id,
                 SindicoId = sindicoId,
-                Nome = nome,
-                Email = email,
                 Cargo = request.Cargo,
-                SenhaHash = string.Empty,
                 Ativo = true,
                 CriadoEm = DateTime.UtcNow
             };
 
-            _db.Funcionarios.Add(funcionario);
+            _db.Usuarios.Add(funcionario);
             await _db.SaveChangesAsync();
 
             await SincronizarCondominiosAcessoAsync(funcionario.Id, request.CondominioIds);
@@ -137,7 +158,8 @@ public class FuncionarioService : IFuncionarioService
 
     public async Task<FuncionarioResponse> ReenviarConviteAsync(Guid id, Guid sindicoId)
     {
-        var funcionario = await _db.Funcionarios
+        var funcionario = await _db.Usuarios
+            .Include(f => f.Pessoa)
             .FirstOrDefaultAsync(f => f.Id == id && f.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Funcionário não encontrado");
 
@@ -166,7 +188,7 @@ public class FuncionarioService : IFuncionarioService
             });
         }
 
-        var conviteEnviado = await EnviarConviteAsync(funcionario.Nome, funcionario.Email);
+        var conviteEnviado = await EnviarConviteAsync(funcionario.Pessoa.Nome, funcionario.Pessoa.Email);
         if (!conviteEnviado)
         {
             throw new ValidationException(new[]
@@ -185,26 +207,28 @@ public class FuncionarioService : IFuncionarioService
 
     public async Task<FuncionarioResponse> UpdateAsync(Guid id, UpdateFuncionarioRequest request, Guid sindicoId)
     {
-        var funcionario = await _db.Funcionarios
+        var funcionario = await _db.Usuarios
+            .Include(f => f.Pessoa)
             .FirstOrDefaultAsync(f => f.Id == id && f.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Funcionário não encontrado");
 
         await ValidarCondominiosDoSindicoAsync(request.CondominioIds, sindicoId);
 
-        funcionario.Nome = request.Nome;
+        funcionario.Pessoa.Nome = request.Nome;
+        funcionario.Pessoa.AtualizadoEm = DateTime.UtcNow;
         funcionario.Cargo = request.Cargo;
         funcionario.AtualizadoEm = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
         await SincronizarCondominiosAcessoAsync(funcionario.Id, request.CondominioIds);
-        await _supabaseAuth.SyncUserMetadataAsync(funcionario.Id, funcionario.Nome, funcionario.Cargo);
+        await _supabaseAuth.SyncUserMetadataAsync(funcionario.Id, funcionario.Pessoa.Nome, funcionario.Cargo);
 
         return await GetByIdAsync(funcionario.Id, sindicoId);
     }
 
     public async Task<FuncionarioResponse> AtivarAsync(Guid id, Guid sindicoId)
     {
-        var funcionario = await _db.Funcionarios
+        var funcionario = await _db.Usuarios
             .FirstOrDefaultAsync(f => f.Id == id && f.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Funcionário não encontrado");
 
@@ -220,7 +244,7 @@ public class FuncionarioService : IFuncionarioService
         if (id == currentUserId)
             throw new UnauthorizedAccessException("O síndico não pode desativar a si mesmo");
 
-        var funcionario = await _db.Funcionarios
+        var funcionario = await _db.Usuarios
             .FirstOrDefaultAsync(f => f.Id == id && f.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Funcionário não encontrado");
 
@@ -236,16 +260,17 @@ public class FuncionarioService : IFuncionarioService
         if (id == currentUserId)
             throw new UnauthorizedAccessException("O síndico não pode excluir a si mesmo");
 
-        var funcionario = await _db.Funcionarios
+        var funcionario = await _db.Usuarios
+            .Include(f => f.Pessoa)
             .FirstOrDefaultAsync(f => f.Id == id && f.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Funcionário não encontrado");
 
         var temVinculos =
-            await _db.Ocorrencias.AnyAsync(o => o.RegistradoPorFuncionarioId == id)
-            || await _db.EmailLogs.AnyAsync(e => e.EnviadoPorFuncionarioId == id)
-            || await _db.SolicitacoesManutencao.AnyAsync(s => s.SolicitadoPorFuncionarioId == id)
-            || await _db.SolicitacoesCompra.AnyAsync(s => s.SolicitadoPorFuncionarioId == id)
-            || await _db.MidiasOcorrencia.AnyAsync(m => m.EnviadoPorFuncionarioId == id);
+            await _db.Ocorrencias.AnyAsync(o => o.RegistradoPorId == id)
+            || await _db.EmailLogs.AnyAsync(e => e.EnviadoPorId == id)
+            || await _db.Solicitacoes.AnyAsync(s => s.SolicitadoPorId == id)
+            || await _db.SolicitacoesCompra.AnyAsync(s => s.AprovadoPorId == id)
+            || await _db.MidiasOcorrencia.AnyAsync(m => m.EnviadoPorId == id);
 
         if (temVinculos)
         {
@@ -253,8 +278,18 @@ public class FuncionarioService : IFuncionarioService
                 "Não é possível excluir um funcionário com registros vinculados no sistema. Desative-o em vez disso.");
         }
 
-        _db.Funcionarios.Remove(funcionario);
+        var pessoa = funcionario.Pessoa;
+        var pessoaId = pessoa.Id;
+        _db.Usuarios.Remove(funcionario);
         await _db.SaveChangesAsync();
+
+        var pessoaEmUso = await _db.Moradores.IgnoreQueryFilters().AnyAsync(m => m.PessoaId == pessoaId);
+        if (!pessoaEmUso)
+        {
+            _db.Pessoas.Remove(pessoa);
+            await _db.SaveChangesAsync();
+        }
+
         await _supabaseAuth.DeleteUserAsync(id);
     }
 
@@ -287,20 +322,20 @@ public class FuncionarioService : IFuncionarioService
     {
         var ids = condominioIds.Distinct().ToHashSet();
 
-        var atuais = await _db.FuncionarioCondominios
-            .Where(fc => fc.FuncionarioId == funcionarioId)
+        var atuais = await _db.UsuarioCondominios
+            .Where(fc => fc.UsuarioId == funcionarioId)
             .ToListAsync();
 
         var remover = atuais.Where(fc => !ids.Contains(fc.CondominioId)).ToList();
         if (remover.Count > 0)
-            _db.FuncionarioCondominios.RemoveRange(remover);
+            _db.UsuarioCondominios.RemoveRange(remover);
 
         var existentes = atuais.Select(fc => fc.CondominioId).ToHashSet();
         foreach (var condominioId in ids.Where(id => !existentes.Contains(id)))
         {
-            _db.FuncionarioCondominios.Add(new FuncionarioCondominio
+            _db.UsuarioCondominios.Add(new UsuarioCondominio
             {
-                FuncionarioId = funcionarioId,
+                UsuarioId = funcionarioId,
                 CondominioId = condominioId,
                 CriadoEm = DateTime.UtcNow,
             });
@@ -311,7 +346,8 @@ public class FuncionarioService : IFuncionarioService
 
     private async Task<FuncionarioResponse> CarregarResponseAsync(Guid funcionarioId, Guid sindicoId)
     {
-        var funcionario = await _db.Funcionarios
+        var funcionario = await _db.Usuarios
+            .Include(f => f.Pessoa)
             .Include(f => f.CondominiosAcesso)
             .ThenInclude(fc => fc.Condominio)
             .FirstAsync(f => f.Id == funcionarioId && f.SindicoId == sindicoId);

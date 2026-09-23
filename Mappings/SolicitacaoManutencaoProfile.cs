@@ -8,24 +8,14 @@ public class SolicitacaoManutencaoProfile : Profile
 {
     public SolicitacaoManutencaoProfile()
     {
-        CreateMap<Funcionario, PessoaRefResponse>()
-            .ForMember(d => d.Id, o => o.MapFrom(s => s.Id))
-            .ForMember(d => d.Nome, o => o.MapFrom(s => s.Nome));
-
         CreateMap<SolicitacaoManutencao, SolicitacaoManutencaoResponse>()
-            .ForMember(d => d.TipoServico, o => o.MapFrom(s => s.Tipo))
-            .ForMember(d => d.RegistradoPor, o => o.MapFrom(s =>
-                s.SolicitadoPorFuncionario != null
-                    ? new PessoaRefResponse
-                    {
-                        Id = s.SolicitadoPorFuncionario.Id,
-                        Nome = s.SolicitadoPorFuncionario.Nome,
-                    }
-                    : new PessoaRefResponse
-                    {
-                        Id = s.SolicitadoPorSindico!.Id,
-                        Nome = s.SolicitadoPorSindico.Nome,
-                    }))
+            .ForMember(d => d.TipoServico, o => o.MapFrom(s => s.TipoManutencao))
+            .ForMember(d => d.RegistradoPor, o => o.MapFrom(s => new PessoaRefResponse
+            {
+                Id = s.SolicitadoPor.Id,
+                Nome = s.SolicitadoPor.Pessoa.Nome,
+                Cargo = s.SolicitadoPor.Cargo,
+            }))
             .ForMember(d => d.Fornecedor, o => o.MapFrom(s => s.Fornecedor));
     }
 }

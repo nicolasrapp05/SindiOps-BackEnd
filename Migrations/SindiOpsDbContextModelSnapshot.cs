@@ -218,10 +218,6 @@ namespace SindiOps.API.Migrations
                         .HasColumnName("criado_em")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<string>("DescricaoProduto")
-                        .HasColumnType("text")
-                        .HasColumnName("descricao_produto");
-
                     b.Property<string>("FormaPagamento")
                         .HasColumnType("text")
                         .HasColumnName("forma_pagamento");
@@ -242,10 +238,6 @@ namespace SindiOps.API.Migrations
                         .HasColumnType("text")
                         .HasColumnName("nome_responsavel");
 
-                    b.Property<decimal?>("Quantidade")
-                        .HasColumnType("numeric")
-                        .HasColumnName("quantidade");
-
                     b.Property<bool>("Selecionada")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -256,9 +248,33 @@ namespace SindiOps.API.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("solicitacao_compra_id");
 
-                    b.Property<string>("Unidade")
-                        .HasColumnType("text")
-                        .HasColumnName("unidade");
+                    b.HasKey("Id");
+
+                    b.HasIndex("FornecedorId");
+
+                    b.HasIndex("SolicitacaoCompraId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_cotacoes_selecionada_unica")
+                        .HasFilter("selecionada = true");
+
+                    b.ToTable("cotacoes", (string)null);
+                });
+
+            modelBuilder.Entity("SindiOps.API.Entities.CotacaoItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("CotacaoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cotacao_id");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_id");
 
                     b.Property<decimal>("ValorTotal")
                         .HasColumnType("numeric")
@@ -270,18 +286,18 @@ namespace SindiOps.API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FornecedorId");
+                    b.HasIndex("CotacaoId");
 
-                    b.HasIndex("SolicitacaoCompraId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_cotacoes_selecionada_unica")
-                        .HasFilter("selecionada = true");
+                    b.HasIndex("ItemId");
 
-                    b.ToTable("cotacoes", null, t =>
+                    b.HasIndex("CotacaoId", "ItemId")
+                        .IsUnique();
+
+                    b.ToTable("cotacao_itens", null, t =>
                         {
-                            t.HasCheckConstraint("ck_cotacoes_valor_total", "valor_total > 0");
+                            t.HasCheckConstraint("ck_cotacao_itens_valor_total", "valor_total > 0");
 
-                            t.HasCheckConstraint("ck_cotacoes_valor_unitario", "valor_unitario > 0");
+                            t.HasCheckConstraint("ck_cotacao_itens_valor_unitario", "valor_unitario > 0");
                         });
                 });
 
@@ -318,13 +334,9 @@ namespace SindiOps.API.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("enviado_em");
 
-                    b.Property<Guid?>("EnviadoPorFuncionarioId")
+                    b.Property<Guid>("EnviadoPorId")
                         .HasColumnType("uuid")
-                        .HasColumnName("enviado_funcionario_id");
-
-                    b.Property<Guid?>("EnviadoPorSindicoId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("enviado_sindico_id");
+                        .HasColumnName("enviado_por_id");
 
                     b.Property<Guid>("MoradorId")
                         .HasColumnType("uuid")
@@ -355,9 +367,7 @@ namespace SindiOps.API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("EnviadoPorFuncionarioId");
-
-                    b.HasIndex("EnviadoPorSindicoId");
+                    b.HasIndex("EnviadoPorId");
 
                     b.HasIndex("MoradorId");
 
@@ -371,8 +381,6 @@ namespace SindiOps.API.Migrations
 
                     b.ToTable("email_logs", null, t =>
                         {
-                            t.HasCheckConstraint("ck_email_logs_enviado_xor", "(enviado_funcionario_id IS NOT NULL AND enviado_sindico_id IS NULL) OR (enviado_funcionario_id IS NULL AND enviado_sindico_id IS NOT NULL)");
-
                             t.HasCheckConstraint("ck_email_logs_status_entrega", "status_entrega IN ('sent', 'delivered', 'failed')");
                         });
                 });
@@ -511,90 +519,6 @@ namespace SindiOps.API.Migrations
                     b.ToTable("fornecedores", (string)null);
                 });
 
-            modelBuilder.Entity("SindiOps.API.Entities.Funcionario", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<bool>("Ativo")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true)
-                        .HasColumnName("ativo");
-
-                    b.Property<DateTime?>("AtualizadoEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("atualizado_em");
-
-                    b.Property<string>("Cargo")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("cargo");
-
-                    b.Property<DateTime>("CriadoEm")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("criado_em")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("email");
-
-                    b.Property<string>("Nome")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("nome");
-
-                    b.Property<string>("SenhaHash")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("senha_hash");
-
-                    b.Property<Guid>("SindicoId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("sindico_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Email")
-                        .IsUnique();
-
-                    b.HasIndex("SindicoId");
-
-                    b.ToTable("funcionarios", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_funcionarios_cargo", "cargo IN ('zelador', 'secretario', 'porteiro', 'outro')");
-                        });
-                });
-
-            modelBuilder.Entity("SindiOps.API.Entities.FuncionarioCondominio", b =>
-                {
-                    b.Property<Guid>("FuncionarioId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("funcionario_id");
-
-                    b.Property<Guid>("CondominioId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("condominio_id");
-
-                    b.Property<DateTime>("CriadoEm")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("criado_em")
-                        .HasDefaultValueSql("now()");
-
-                    b.HasKey("FuncionarioId", "CondominioId");
-
-                    b.HasIndex("CondominioId");
-
-                    b.ToTable("funcionario_condominios", (string)null);
-                });
-
             modelBuilder.Entity("SindiOps.API.Entities.ManutencaoObrigatoria", b =>
                 {
                     b.Property<Guid>("Id")
@@ -671,13 +595,9 @@ namespace SindiOps.API.Migrations
                         .HasColumnName("criado_em")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<Guid?>("EnviadoPorFuncionarioId")
+                    b.Property<Guid>("EnviadoPorId")
                         .HasColumnType("uuid")
-                        .HasColumnName("enviado_funcionario_id");
-
-                    b.Property<Guid?>("EnviadoPorSindicoId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("enviado_sindico_id");
+                        .HasColumnName("enviado_por_id");
 
                     b.Property<Guid>("OcorrenciaId")
                         .HasColumnType("uuid")
@@ -695,16 +615,12 @@ namespace SindiOps.API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("EnviadoPorFuncionarioId");
-
-                    b.HasIndex("EnviadoPorSindicoId");
+                    b.HasIndex("EnviadoPorId");
 
                     b.HasIndex("OcorrenciaId");
 
                     b.ToTable("midias_ocorrencia", null, t =>
                         {
-                            t.HasCheckConstraint("ck_midias_enviado_xor", "(enviado_funcionario_id IS NOT NULL AND enviado_sindico_id IS NULL) OR (enviado_funcionario_id IS NULL AND enviado_sindico_id IS NOT NULL)");
-
                             t.HasCheckConstraint("ck_midias_tipo_arquivo", "tipo_arquivo IN ('image', 'video')");
                         });
                 });
@@ -721,14 +637,6 @@ namespace SindiOps.API.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("atualizado_em");
 
-                    b.Property<Guid>("BlocoId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("bloco_id");
-
-                    b.Property<Guid>("CondominioId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("condominio_id");
-
                     b.Property<DateTime>("CriadoEm")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -739,19 +647,14 @@ namespace SindiOps.API.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deletado_em");
 
-                    b.Property<string>("Email")
+                    b.Property<string>("Papel")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasColumnName("email");
+                        .HasColumnName("papel");
 
-                    b.Property<string>("Nome")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("nome");
-
-                    b.Property<string>("Telefone")
-                        .HasColumnType("text")
-                        .HasColumnName("telefone");
+                    b.Property<Guid>("PessoaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pessoa_id");
 
                     b.Property<Guid>("UnidadeId")
                         .HasColumnType("uuid")
@@ -759,13 +662,22 @@ namespace SindiOps.API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BlocoId");
+                    b.HasIndex("PessoaId");
 
-                    b.HasIndex("CondominioId");
+                    b.HasIndex("UnidadeId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_moradores_proprietario_unico")
+                        .HasFilter("papel = 'proprietario' AND deletado_em IS NULL");
 
-                    b.HasIndex("UnidadeId");
+                    b.HasIndex("UnidadeId", "PessoaId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_moradores_unidade_pessoa")
+                        .HasFilter("deletado_em IS NULL");
 
-                    b.ToTable("moradores", (string)null);
+                    b.ToTable("moradores", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_moradores_papel", "papel IN ('proprietario', 'inquilino', 'ocupante')");
+                        });
                 });
 
             modelBuilder.Entity("SindiOps.API.Entities.Ocorrencia", b =>
@@ -812,13 +724,9 @@ namespace SindiOps.API.Migrations
                         .HasColumnType("text")
                         .HasColumnName("origem");
 
-                    b.Property<Guid?>("RegistradoPorFuncionarioId")
+                    b.Property<Guid>("RegistradoPorId")
                         .HasColumnType("uuid")
-                        .HasColumnName("registrado_funcionario_id");
-
-                    b.Property<Guid?>("RegistradoPorSindicoId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("registrado_sindico_id");
+                        .HasColumnName("registrado_por_id");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -849,9 +757,7 @@ namespace SindiOps.API.Migrations
 
                     b.HasIndex("MoradorId");
 
-                    b.HasIndex("RegistradoPorFuncionarioId");
-
-                    b.HasIndex("RegistradoPorSindicoId");
+                    b.HasIndex("RegistradoPorId");
 
                     b.HasIndex("UnidadeId");
 
@@ -863,14 +769,49 @@ namespace SindiOps.API.Migrations
                         {
                             t.HasCheckConstraint("ck_ocorrencias_origem", "origem IN ('reclamacao_morador', 'reclamacao_funcionario', 'reclamacao_terceiros', 'fora_de_norma')");
 
-                            t.HasCheckConstraint("ck_ocorrencias_registrado_xor", "(registrado_funcionario_id IS NOT NULL AND registrado_sindico_id IS NULL) OR (registrado_funcionario_id IS NULL AND registrado_sindico_id IS NOT NULL)");
-
                             t.HasCheckConstraint("ck_ocorrencias_status", "status IN ('nova', 'em_andamento', 'finalizada', 'cancelada')");
 
                             t.HasCheckConstraint("ck_ocorrencias_tipo_local", "tipo_local IS NULL OR tipo_local IN ('area_comum','estacionamento','portaria','jardim','salao_festas','hall','corredores','vizinhos','outro')");
 
                             t.HasCheckConstraint("ck_ocorrencias_tipo_ocorrencia", "tipo_ocorrencia IS NULL OR tipo_ocorrencia IN ('barulho','pets','garagem','alteracao_fachada','objetos_corredores','objetos_janelas_sacadas','outro')");
                         });
+                });
+
+            modelBuilder.Entity("SindiOps.API.Entities.Pessoa", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTime?>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("email");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("nome");
+
+                    b.Property<string>("Telefone")
+                        .HasColumnType("text")
+                        .HasColumnName("telefone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("pessoas", (string)null);
                 });
 
             modelBuilder.Entity("SindiOps.API.Entities.ServicoFornecedor", b =>
@@ -911,140 +852,7 @@ namespace SindiOps.API.Migrations
                     b.ToTable("servicos_fornecedor", (string)null);
                 });
 
-            modelBuilder.Entity("SindiOps.API.Entities.Sindico", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<DateTime?>("AtualizadoEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("atualizado_em");
-
-                    b.Property<DateTime>("CriadoEm")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("criado_em")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("email");
-
-                    b.Property<string>("Nome")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("nome");
-
-                    b.Property<string>("Telefone")
-                        .HasColumnType("text")
-                        .HasColumnName("telefone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Email")
-                        .IsUnique();
-
-                    b.ToTable("sindicos", (string)null);
-                });
-
-            modelBuilder.Entity("SindiOps.API.Entities.SolicitacaoCompra", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<Guid?>("AprovadoPorId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("aprovado_por");
-
-                    b.Property<DateTime?>("AtualizadoEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("atualizado_em");
-
-                    b.Property<string>("Categoria")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("categoria");
-
-                    b.Property<Guid>("CondominioId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("condominio_id");
-
-                    b.Property<DateTime>("CriadoEm")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("criado_em")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<bool>("EReposicao")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("e_reposicao");
-
-                    b.Property<string>("Item")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("item");
-
-                    b.Property<string>("Justificativa")
-                        .HasColumnType("text")
-                        .HasColumnName("justificativa");
-
-                    b.Property<decimal>("Quantidade")
-                        .HasColumnType("numeric")
-                        .HasColumnName("quantidade");
-
-                    b.Property<Guid?>("SolicitadoPorFuncionarioId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("solicitado_funcionario_id");
-
-                    b.Property<Guid?>("SolicitadoPorSindicoId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("solicitado_sindico_id");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("text")
-                        .HasDefaultValue("nova")
-                        .HasColumnName("status");
-
-                    b.Property<string>("TipoAprovacao")
-                        .HasColumnType("text")
-                        .HasColumnName("tipo_aprovacao");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AprovadoPorId");
-
-                    b.HasIndex("CondominioId");
-
-                    b.HasIndex("SolicitadoPorFuncionarioId");
-
-                    b.HasIndex("SolicitadoPorSindicoId");
-
-                    b.HasIndex("CondominioId", "Status");
-
-                    b.ToTable("solicitacoes_compra", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_sol_compra_categoria", "categoria IN ('papelaria', 'mat_construcao', 'mat_limpeza', 'mat_especifico')");
-
-                            t.HasCheckConstraint("ck_sol_compra_solicitado_xor", "(solicitado_funcionario_id IS NOT NULL AND solicitado_sindico_id IS NULL) OR (solicitado_funcionario_id IS NULL AND solicitado_sindico_id IS NOT NULL)");
-
-                            t.HasCheckConstraint("ck_sol_compra_status", "status IN ('nova', 'em_andamento', 'finalizada', 'cancelada')");
-
-                            t.HasCheckConstraint("ck_sol_compra_tipo_aprovacao", "tipo_aprovacao IS NULL OR tipo_aprovacao IN ('sindico', 'conselho', 'assembleia')");
-                        });
-                });
-
-            modelBuilder.Entity("SindiOps.API.Entities.SolicitacaoManutencao", b =>
+            modelBuilder.Entity("SindiOps.API.Entities.Solicitacao", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1066,33 +874,9 @@ namespace SindiOps.API.Migrations
                         .HasColumnName("criado_em")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<DateOnly?>("DataConclusao")
-                        .HasColumnType("date")
-                        .HasColumnName("data_conclusao");
-
-                    b.Property<string>("Descricao")
-                        .HasColumnType("text")
-                        .HasColumnName("descricao");
-
-                    b.Property<Guid?>("FornecedorId")
+                    b.Property<Guid>("SolicitadoPorId")
                         .HasColumnType("uuid")
-                        .HasColumnName("fornecedor_id");
-
-                    b.Property<string>("Local")
-                        .HasColumnType("text")
-                        .HasColumnName("local");
-
-                    b.Property<string>("Responsavel")
-                        .HasColumnType("text")
-                        .HasColumnName("responsavel");
-
-                    b.Property<Guid?>("SolicitadoPorFuncionarioId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("solicitado_funcionario_id");
-
-                    b.Property<Guid?>("SolicitadoPorSindicoId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("solicitado_sindico_id");
+                        .HasColumnName("solicitado_por_id");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1110,23 +894,71 @@ namespace SindiOps.API.Migrations
 
                     b.HasIndex("CondominioId");
 
-                    b.HasIndex("FornecedorId");
-
-                    b.HasIndex("SolicitadoPorFuncionarioId");
-
-                    b.HasIndex("SolicitadoPorSindicoId");
+                    b.HasIndex("SolicitadoPorId");
 
                     b.HasIndex("CondominioId", "Status");
 
-                    b.ToTable("solicitacoes_manutencao", null, t =>
+                    b.ToTable("solicitacoes", null, t =>
                         {
-                            t.HasCheckConstraint("ck_sol_manutencao_responsavel", "responsavel IS NULL OR responsavel IN ('fornecedor', 'zelador')");
+                            t.HasCheckConstraint("ck_solicitacoes_status", "status IN ('nova', 'em_andamento', 'finalizada', 'cancelada')");
 
-                            t.HasCheckConstraint("ck_sol_manutencao_solicitado_xor", "(solicitado_funcionario_id IS NOT NULL AND solicitado_sindico_id IS NULL) OR (solicitado_funcionario_id IS NULL AND solicitado_sindico_id IS NOT NULL)");
+                            t.HasCheckConstraint("ck_solicitacoes_tipo", "tipo IN ('compra', 'manutencao')");
+                        });
 
-                            t.HasCheckConstraint("ck_sol_manutencao_status", "status IN ('nova', 'em_andamento', 'finalizada', 'cancelada')");
+                    b.UseTptMappingStrategy();
+                });
 
-                            t.HasCheckConstraint("ck_sol_manutencao_tipo", "tipo IN ('obra_civil','pintura','serralheria','eletrica','hidraulica','cameras','portas_portoes','jardim','esgoto','caixa_gordura','outro')");
+            modelBuilder.Entity("SindiOps.API.Entities.SolicitacaoCompraItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Categoria")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("categoria");
+
+                    b.Property<string>("Descricao")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("descricao");
+
+                    b.Property<bool>("EReposicao")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("e_reposicao");
+
+                    b.Property<int>("Ordem")
+                        .HasColumnType("integer")
+                        .HasColumnName("ordem");
+
+                    b.Property<decimal>("Quantidade")
+                        .HasColumnType("numeric")
+                        .HasColumnName("quantidade");
+
+                    b.Property<Guid>("SolicitacaoCompraId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("solicitacao_compra_id");
+
+                    b.Property<string>("Unidade")
+                        .HasColumnType("text")
+                        .HasColumnName("unidade");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SolicitacaoCompraId");
+
+                    b.ToTable("solicitacao_compra_itens", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_sol_compra_item_categoria", "categoria IN ('papelaria', 'mat_construcao', 'mat_limpeza', 'mat_especifico')");
+
+                            t.HasCheckConstraint("ck_sol_compra_item_ordem", "ordem >= 0");
+
+                            t.HasCheckConstraint("ck_sol_compra_item_quantidade", "quantidade > 0");
                         });
                 });
 
@@ -1169,6 +1001,151 @@ namespace SindiOps.API.Migrations
                     b.ToTable("unidades", (string)null);
                 });
 
+            modelBuilder.Entity("SindiOps.API.Entities.Usuario", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("Ativo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("ativo");
+
+                    b.Property<DateTime?>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<string>("Cargo")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("cargo");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("PessoaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pessoa_id");
+
+                    b.Property<Guid?>("SindicoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sindico_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PessoaId")
+                        .IsUnique();
+
+                    b.HasIndex("SindicoId");
+
+                    b.ToTable("usuarios", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_usuarios_cargo", "cargo IN ('sindico', 'secretario', 'zelador', 'porteiro', 'outro')");
+
+                            t.HasCheckConstraint("ck_usuarios_sindico_carteira", "(cargo = 'sindico' AND sindico_id IS NULL) OR (cargo <> 'sindico' AND sindico_id IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("SindiOps.API.Entities.UsuarioCondominio", b =>
+                {
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("usuario_id");
+
+                    b.Property<Guid>("CondominioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("condominio_id");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("UsuarioId", "CondominioId");
+
+                    b.HasIndex("CondominioId");
+
+                    b.ToTable("usuario_condominios", (string)null);
+                });
+
+            modelBuilder.Entity("SindiOps.API.Entities.SolicitacaoCompra", b =>
+                {
+                    b.HasBaseType("SindiOps.API.Entities.Solicitacao");
+
+                    b.Property<Guid?>("AprovadoPorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("aprovado_por_id");
+
+                    b.Property<string>("Justificativa")
+                        .HasColumnType("text")
+                        .HasColumnName("justificativa");
+
+                    b.Property<string>("TipoAprovacao")
+                        .HasColumnType("text")
+                        .HasColumnName("tipo_aprovacao");
+
+                    b.HasIndex("AprovadoPorId");
+
+                    b.ToTable("solicitacoes_compra", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_solicitacoes_status", "status IN ('nova', 'em_andamento', 'finalizada', 'cancelada')");
+
+                            t.HasCheckConstraint("ck_solicitacoes_tipo", "tipo IN ('compra', 'manutencao')");
+
+                            t.HasCheckConstraint("ck_sol_compra_tipo_aprovacao", "tipo_aprovacao IS NULL OR tipo_aprovacao IN ('sindico', 'conselho', 'assembleia')");
+                        });
+                });
+
+            modelBuilder.Entity("SindiOps.API.Entities.SolicitacaoManutencao", b =>
+                {
+                    b.HasBaseType("SindiOps.API.Entities.Solicitacao");
+
+                    b.Property<DateOnly?>("DataConclusao")
+                        .HasColumnType("date")
+                        .HasColumnName("data_conclusao");
+
+                    b.Property<string>("Descricao")
+                        .HasColumnType("text")
+                        .HasColumnName("descricao");
+
+                    b.Property<Guid?>("FornecedorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fornecedor_id");
+
+                    b.Property<string>("Local")
+                        .HasColumnType("text")
+                        .HasColumnName("local");
+
+                    b.Property<string>("Responsavel")
+                        .HasColumnType("text")
+                        .HasColumnName("responsavel");
+
+                    b.Property<string>("TipoManutencao")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("tipo");
+
+                    b.HasIndex("FornecedorId");
+
+                    b.ToTable("solicitacoes_manutencao", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_solicitacoes_status", "status IN ('nova', 'em_andamento', 'finalizada', 'cancelada')");
+
+                            t.HasCheckConstraint("ck_solicitacoes_tipo", "tipo IN ('compra', 'manutencao')");
+
+                            t.HasCheckConstraint("ck_sol_manutencao_responsavel", "responsavel IS NULL OR responsavel IN ('fornecedor', 'zelador')");
+
+                            t.HasCheckConstraint("ck_sol_manutencao_tipo", "tipo IN ('obra_civil','pintura','serralheria','eletrica','hidraulica','cameras','portas_portoes','jardim','esgoto','caixa_gordura','outro')");
+                        });
+                });
+
             modelBuilder.Entity("SindiOps.API.Entities.Bloco", b =>
                 {
                     b.HasOne("SindiOps.API.Entities.Condominio", "Condominio")
@@ -1182,7 +1159,7 @@ namespace SindiOps.API.Migrations
 
             modelBuilder.Entity("SindiOps.API.Entities.Condominio", b =>
                 {
-                    b.HasOne("SindiOps.API.Entities.Sindico", "Sindico")
+                    b.HasOne("SindiOps.API.Entities.Usuario", "Sindico")
                         .WithMany("Condominios")
                         .HasForeignKey("SindicoId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -1228,17 +1205,32 @@ namespace SindiOps.API.Migrations
                     b.Navigation("SolicitacaoCompra");
                 });
 
+            modelBuilder.Entity("SindiOps.API.Entities.CotacaoItem", b =>
+                {
+                    b.HasOne("SindiOps.API.Entities.Cotacao", "Cotacao")
+                        .WithMany("Itens")
+                        .HasForeignKey("CotacaoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SindiOps.API.Entities.SolicitacaoCompraItem", "Item")
+                        .WithMany("CotacaoItens")
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Cotacao");
+
+                    b.Navigation("Item");
+                });
+
             modelBuilder.Entity("SindiOps.API.Entities.EmailLog", b =>
                 {
-                    b.HasOne("SindiOps.API.Entities.Funcionario", "EnviadoPorFuncionario")
+                    b.HasOne("SindiOps.API.Entities.Usuario", "EnviadoPor")
                         .WithMany()
-                        .HasForeignKey("EnviadoPorFuncionarioId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("SindiOps.API.Entities.Sindico", "EnviadoPorSindico")
-                        .WithMany()
-                        .HasForeignKey("EnviadoPorSindicoId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .HasForeignKey("EnviadoPorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("SindiOps.API.Entities.Morador", "Morador")
                         .WithMany("EmailLogs")
@@ -1251,7 +1243,7 @@ namespace SindiOps.API.Migrations
                         .HasForeignKey("OcorrenciaId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("SindiOps.API.Entities.Sindico", "Sindico")
+                    b.HasOne("SindiOps.API.Entities.Usuario", "Sindico")
                         .WithMany("EmailLogs")
                         .HasForeignKey("SindicoId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -1262,9 +1254,7 @@ namespace SindiOps.API.Migrations
                         .HasForeignKey("TemplateId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Navigation("EnviadoPorFuncionario");
-
-                    b.Navigation("EnviadoPorSindico");
+                    b.Navigation("EnviadoPor");
 
                     b.Navigation("Morador");
 
@@ -1277,7 +1267,7 @@ namespace SindiOps.API.Migrations
 
             modelBuilder.Entity("SindiOps.API.Entities.EmailTemplate", b =>
                 {
-                    b.HasOne("SindiOps.API.Entities.Sindico", "Sindico")
+                    b.HasOne("SindiOps.API.Entities.Usuario", "Sindico")
                         .WithMany("EmailTemplates")
                         .HasForeignKey("SindicoId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -1288,43 +1278,13 @@ namespace SindiOps.API.Migrations
 
             modelBuilder.Entity("SindiOps.API.Entities.Fornecedor", b =>
                 {
-                    b.HasOne("SindiOps.API.Entities.Sindico", "Sindico")
+                    b.HasOne("SindiOps.API.Entities.Usuario", "Sindico")
                         .WithMany("Fornecedores")
                         .HasForeignKey("SindicoId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Sindico");
-                });
-
-            modelBuilder.Entity("SindiOps.API.Entities.Funcionario", b =>
-                {
-                    b.HasOne("SindiOps.API.Entities.Sindico", "Sindico")
-                        .WithMany("Funcionarios")
-                        .HasForeignKey("SindicoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Sindico");
-                });
-
-            modelBuilder.Entity("SindiOps.API.Entities.FuncionarioCondominio", b =>
-                {
-                    b.HasOne("SindiOps.API.Entities.Condominio", "Condominio")
-                        .WithMany("FuncionariosAcesso")
-                        .HasForeignKey("CondominioId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("SindiOps.API.Entities.Funcionario", "Funcionario")
-                        .WithMany("CondominiosAcesso")
-                        .HasForeignKey("FuncionarioId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Condominio");
-
-                    b.Navigation("Funcionario");
                 });
 
             modelBuilder.Entity("SindiOps.API.Entities.ManutencaoObrigatoria", b =>
@@ -1340,15 +1300,11 @@ namespace SindiOps.API.Migrations
 
             modelBuilder.Entity("SindiOps.API.Entities.MidiaOcorrencia", b =>
                 {
-                    b.HasOne("SindiOps.API.Entities.Funcionario", "EnviadoPorFuncionario")
+                    b.HasOne("SindiOps.API.Entities.Usuario", "EnviadoPor")
                         .WithMany()
-                        .HasForeignKey("EnviadoPorFuncionarioId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("SindiOps.API.Entities.Sindico", "EnviadoPorSindico")
-                        .WithMany()
-                        .HasForeignKey("EnviadoPorSindicoId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .HasForeignKey("EnviadoPorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("SindiOps.API.Entities.Ocorrencia", "Ocorrencia")
                         .WithMany("Midias")
@@ -1356,24 +1312,16 @@ namespace SindiOps.API.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("EnviadoPorFuncionario");
-
-                    b.Navigation("EnviadoPorSindico");
+                    b.Navigation("EnviadoPor");
 
                     b.Navigation("Ocorrencia");
                 });
 
             modelBuilder.Entity("SindiOps.API.Entities.Morador", b =>
                 {
-                    b.HasOne("SindiOps.API.Entities.Bloco", "Bloco")
+                    b.HasOne("SindiOps.API.Entities.Pessoa", "Pessoa")
                         .WithMany("Moradores")
-                        .HasForeignKey("BlocoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("SindiOps.API.Entities.Condominio", "Condominio")
-                        .WithMany("Moradores")
-                        .HasForeignKey("CondominioId")
+                        .HasForeignKey("PessoaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -1383,9 +1331,7 @@ namespace SindiOps.API.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Bloco");
-
-                    b.Navigation("Condominio");
+                    b.Navigation("Pessoa");
 
                     b.Navigation("Unidade");
                 });
@@ -1408,15 +1354,11 @@ namespace SindiOps.API.Migrations
                         .HasForeignKey("MoradorId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("SindiOps.API.Entities.Funcionario", "RegistradoPorFuncionario")
+                    b.HasOne("SindiOps.API.Entities.Usuario", "RegistradoPor")
                         .WithMany()
-                        .HasForeignKey("RegistradoPorFuncionarioId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("SindiOps.API.Entities.Sindico", "RegistradoPorSindico")
-                        .WithMany()
-                        .HasForeignKey("RegistradoPorSindicoId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .HasForeignKey("RegistradoPorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("SindiOps.API.Entities.Unidade", "Unidade")
                         .WithMany()
@@ -1429,9 +1371,7 @@ namespace SindiOps.API.Migrations
 
                     b.Navigation("Morador");
 
-                    b.Navigation("RegistradoPorFuncionario");
-
-                    b.Navigation("RegistradoPorSindico");
+                    b.Navigation("RegistradoPor");
 
                     b.Navigation("Unidade");
                 });
@@ -1447,68 +1387,34 @@ namespace SindiOps.API.Migrations
                     b.Navigation("Fornecedor");
                 });
 
-            modelBuilder.Entity("SindiOps.API.Entities.SolicitacaoCompra", b =>
+            modelBuilder.Entity("SindiOps.API.Entities.Solicitacao", b =>
                 {
-                    b.HasOne("SindiOps.API.Entities.Funcionario", "AprovadoPor")
-                        .WithMany()
-                        .HasForeignKey("AprovadoPorId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("SindiOps.API.Entities.Condominio", "Condominio")
-                        .WithMany("SolicitacoesCompra")
+                        .WithMany("Solicitacoes")
                         .HasForeignKey("CondominioId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SindiOps.API.Entities.Funcionario", "SolicitadoPorFuncionario")
+                    b.HasOne("SindiOps.API.Entities.Usuario", "SolicitadoPor")
                         .WithMany()
-                        .HasForeignKey("SolicitadoPorFuncionarioId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("SindiOps.API.Entities.Sindico", "SolicitadoPorSindico")
-                        .WithMany()
-                        .HasForeignKey("SolicitadoPorSindicoId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("AprovadoPor");
+                        .HasForeignKey("SolicitadoPorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Condominio");
 
-                    b.Navigation("SolicitadoPorFuncionario");
-
-                    b.Navigation("SolicitadoPorSindico");
+                    b.Navigation("SolicitadoPor");
                 });
 
-            modelBuilder.Entity("SindiOps.API.Entities.SolicitacaoManutencao", b =>
+            modelBuilder.Entity("SindiOps.API.Entities.SolicitacaoCompraItem", b =>
                 {
-                    b.HasOne("SindiOps.API.Entities.Condominio", "Condominio")
-                        .WithMany("SolicitacoesManutencao")
-                        .HasForeignKey("CondominioId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                    b.HasOne("SindiOps.API.Entities.SolicitacaoCompra", "SolicitacaoCompra")
+                        .WithMany("Itens")
+                        .HasForeignKey("SolicitacaoCompraId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("SindiOps.API.Entities.Fornecedor", "Fornecedor")
-                        .WithMany()
-                        .HasForeignKey("FornecedorId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("SindiOps.API.Entities.Funcionario", "SolicitadoPorFuncionario")
-                        .WithMany()
-                        .HasForeignKey("SolicitadoPorFuncionarioId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("SindiOps.API.Entities.Sindico", "SolicitadoPorSindico")
-                        .WithMany()
-                        .HasForeignKey("SolicitadoPorSindicoId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Condominio");
-
-                    b.Navigation("Fornecedor");
-
-                    b.Navigation("SolicitadoPorFuncionario");
-
-                    b.Navigation("SolicitadoPorSindico");
+                    b.Navigation("SolicitacaoCompra");
                 });
 
             modelBuilder.Entity("SindiOps.API.Entities.Unidade", b =>
@@ -1530,10 +1436,77 @@ namespace SindiOps.API.Migrations
                     b.Navigation("Condominio");
                 });
 
+            modelBuilder.Entity("SindiOps.API.Entities.Usuario", b =>
+                {
+                    b.HasOne("SindiOps.API.Entities.Pessoa", "Pessoa")
+                        .WithOne("Usuario")
+                        .HasForeignKey("SindiOps.API.Entities.Usuario", "PessoaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SindiOps.API.Entities.Usuario", "Sindico")
+                        .WithMany("Equipe")
+                        .HasForeignKey("SindicoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Pessoa");
+
+                    b.Navigation("Sindico");
+                });
+
+            modelBuilder.Entity("SindiOps.API.Entities.UsuarioCondominio", b =>
+                {
+                    b.HasOne("SindiOps.API.Entities.Condominio", "Condominio")
+                        .WithMany("UsuariosAcesso")
+                        .HasForeignKey("CondominioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SindiOps.API.Entities.Usuario", "Usuario")
+                        .WithMany("CondominiosAcesso")
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Condominio");
+
+                    b.Navigation("Usuario");
+                });
+
+            modelBuilder.Entity("SindiOps.API.Entities.SolicitacaoCompra", b =>
+                {
+                    b.HasOne("SindiOps.API.Entities.Usuario", "AprovadoPor")
+                        .WithMany()
+                        .HasForeignKey("AprovadoPorId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SindiOps.API.Entities.Solicitacao", null)
+                        .WithOne()
+                        .HasForeignKey("SindiOps.API.Entities.SolicitacaoCompra", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AprovadoPor");
+                });
+
+            modelBuilder.Entity("SindiOps.API.Entities.SolicitacaoManutencao", b =>
+                {
+                    b.HasOne("SindiOps.API.Entities.Fornecedor", "Fornecedor")
+                        .WithMany()
+                        .HasForeignKey("FornecedorId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SindiOps.API.Entities.Solicitacao", null)
+                        .WithOne()
+                        .HasForeignKey("SindiOps.API.Entities.SolicitacaoManutencao", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Fornecedor");
+                });
+
             modelBuilder.Entity("SindiOps.API.Entities.Bloco", b =>
                 {
-                    b.Navigation("Moradores");
-
                     b.Navigation("Unidades");
                 });
 
@@ -1543,19 +1516,20 @@ namespace SindiOps.API.Migrations
 
                     b.Navigation("Contratos");
 
-                    b.Navigation("FuncionariosAcesso");
-
                     b.Navigation("ManutencoesObrigatorias");
-
-                    b.Navigation("Moradores");
 
                     b.Navigation("Ocorrencias");
 
-                    b.Navigation("SolicitacoesCompra");
-
-                    b.Navigation("SolicitacoesManutencao");
+                    b.Navigation("Solicitacoes");
 
                     b.Navigation("Unidades");
+
+                    b.Navigation("UsuariosAcesso");
+                });
+
+            modelBuilder.Entity("SindiOps.API.Entities.Cotacao", b =>
+                {
+                    b.Navigation("Itens");
                 });
 
             modelBuilder.Entity("SindiOps.API.Entities.EmailTemplate", b =>
@@ -1568,11 +1542,6 @@ namespace SindiOps.API.Migrations
                     b.Navigation("Contratos");
 
                     b.Navigation("Servicos");
-                });
-
-            modelBuilder.Entity("SindiOps.API.Entities.Funcionario", b =>
-                {
-                    b.Navigation("CondominiosAcesso");
                 });
 
             modelBuilder.Entity("SindiOps.API.Entities.Morador", b =>
@@ -1589,27 +1558,43 @@ namespace SindiOps.API.Migrations
                     b.Navigation("Midias");
                 });
 
-            modelBuilder.Entity("SindiOps.API.Entities.Sindico", b =>
+            modelBuilder.Entity("SindiOps.API.Entities.Pessoa", b =>
                 {
-                    b.Navigation("Condominios");
+                    b.Navigation("Moradores");
 
-                    b.Navigation("EmailLogs");
-
-                    b.Navigation("EmailTemplates");
-
-                    b.Navigation("Fornecedores");
-
-                    b.Navigation("Funcionarios");
+                    b.Navigation("Usuario");
                 });
 
-            modelBuilder.Entity("SindiOps.API.Entities.SolicitacaoCompra", b =>
+            modelBuilder.Entity("SindiOps.API.Entities.SolicitacaoCompraItem", b =>
                 {
-                    b.Navigation("Cotacoes");
+                    b.Navigation("CotacaoItens");
                 });
 
             modelBuilder.Entity("SindiOps.API.Entities.Unidade", b =>
                 {
                     b.Navigation("Moradores");
+                });
+
+            modelBuilder.Entity("SindiOps.API.Entities.Usuario", b =>
+                {
+                    b.Navigation("Condominios");
+
+                    b.Navigation("CondominiosAcesso");
+
+                    b.Navigation("EmailLogs");
+
+                    b.Navigation("EmailTemplates");
+
+                    b.Navigation("Equipe");
+
+                    b.Navigation("Fornecedores");
+                });
+
+            modelBuilder.Entity("SindiOps.API.Entities.SolicitacaoCompra", b =>
+                {
+                    b.Navigation("Cotacoes");
+
+                    b.Navigation("Itens");
                 });
 #pragma warning restore 612, 618
         }

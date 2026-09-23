@@ -8,7 +8,8 @@ public class EmailLogProfile : Profile
 {
     public EmailLogProfile()
     {
-        CreateMap<Morador, MoradorEmailLogRefResponse>();
+        CreateMap<Morador, MoradorEmailLogRefResponse>()
+            .ForMember(d => d.Nome, o => o.MapFrom(s => s.Pessoa.Nome));
 
         CreateMap<Ocorrencia, OcorrenciaEmailLogRefResponse>();
 
@@ -18,19 +19,12 @@ public class EmailLogProfile : Profile
             .ForMember(d => d.Morador, o => o.MapFrom(s => s.Morador))
             .ForMember(d => d.Ocorrencia, o => o.MapFrom(s => s.Ocorrencia))
             .ForMember(d => d.Template, o => o.MapFrom(s => s.Template))
-            .ForMember(d => d.EnviadoPor, o => o.MapFrom(s =>
-                s.EnviadoPorFuncionario != null
-                    ? new PessoaRefResponse
-                    {
-                        Id = s.EnviadoPorFuncionario.Id,
-                        Nome = s.EnviadoPorFuncionario.Nome,
-                        Cargo = s.EnviadoPorFuncionario.Cargo,
-                    }
-                    : new PessoaRefResponse
-                    {
-                        Id = s.EnviadoPorSindico!.Id,
-                        Nome = s.EnviadoPorSindico.Nome,
-                    }));
+            .ForMember(d => d.EnviadoPor, o => o.MapFrom(s => new PessoaRefResponse
+            {
+                Id = s.EnviadoPor.Id,
+                Nome = s.EnviadoPor.Pessoa.Nome,
+                Cargo = s.EnviadoPor.Cargo,
+            }));
 
         CreateMap<EmailLog, EmailLogDetalheResponse>()
             .IncludeBase<EmailLog, EmailLogResponse>();
