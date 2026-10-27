@@ -8,9 +8,6 @@ public class SolicitacaoCompraProfile : Profile
 {
     public SolicitacaoCompraProfile()
     {
-        CreateMap<Usuario, PessoaRefResponse>()
-            .ForMember(d => d.Nome, o => o.MapFrom(s => s.Pessoa.Nome));
-
         CreateMap<SolicitacaoCompraItem, SolicitacaoCompraItemResponse>();
         CreateMap<CotacaoItem, CotacaoItemResponse>();
 

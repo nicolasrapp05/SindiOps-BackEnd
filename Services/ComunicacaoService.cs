@@ -43,8 +43,7 @@ public class ComunicacaoService : IComunicacaoService
 
         var ocorrencia = await _db.Ocorrencias
             .Include(o => o.Condominio)
-            .Include(o => o.Morador)!.ThenInclude(m => m!.Pessoa)
-            .Include(o => o.Morador)!.ThenInclude(m => m!.Unidade).ThenInclude(u => u!.Bloco)
+            .Include(o => o.Morador)!.ThenInclude(m => m!.Usuario)
             .FirstOrDefaultAsync(o => o.Id == ocorrenciaId && o.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Ocorrência não encontrada");
 
@@ -52,19 +51,18 @@ public class ComunicacaoService : IComunicacaoService
             .FirstOrDefaultAsync(t => t.Id == request.TemplateId && t.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Template não encontrado");
 
-        var morador = await _db.Moradores
-            .Include(m => m.Pessoa)
-            .Include(m => m.Unidade)
-            .ThenInclude(u => u.Bloco)
-            .FirstOrDefaultAsync(m => m.Id == request.MoradorId && m.Unidade.CondominioId == ocorrencia.CondominioId)
+        var ocupacao = await _db.MoradorUnidades
+            .Include(o => o.Morador).ThenInclude(m => m.Usuario)
+            .Include(o => o.Unidade).ThenInclude(u => u.Bloco)
+            .FirstOrDefaultAsync(o => o.Id == request.MoradorId && o.Unidade.CondominioId == ocorrencia.CondominioId)
             ?? throw new KeyNotFoundException("Morador não encontrado neste condomínio");
 
-        var sindico = await _db.Usuarios
-            .Include(u => u.Pessoa)
-            .FirstOrDefaultAsync(s => s.Id == sindicoId && s.Cargo == CargoConstants.Sindico)
+        var sindico = await _db.Sindicos
+            .Include(s => s.Usuario)
+            .FirstOrDefaultAsync(s => s.Id == sindicoId)
             ?? throw new KeyNotFoundException("Síndico não encontrado");
 
-        var valores = MontarVariaveisTemplate(ocorrencia, morador, sindico, request.ValorMulta, request.PrazoResposta);
+        var valores = MontarVariaveisTemplate(ocorrencia, ocupacao, sindico.Usuario, request.ValorMulta, request.PrazoResposta);
 
         var assunto = _templateResolver.Resolve(request.AssuntoEditado, valores, nameof(EnviarComunicacaoRequest.AssuntoEditado));
         var corpo = _templateResolver.Resolve(request.CorpoEditado, valores, nameof(EnviarComunicacaoRequest.CorpoEditado));
@@ -72,7 +70,7 @@ public class ComunicacaoService : IComunicacaoService
         var enviadoOk = false;
         try
         {
-            enviadoOk = await _emailService.SendAsync(morador.Pessoa.Email, assunto, corpo);
+            enviadoOk = await _emailService.SendAsync(ocupacao.Morador.Usuario.Email, assunto, corpo);
         }
         catch
         {
@@ -84,8 +82,8 @@ public class ComunicacaoService : IComunicacaoService
             SindicoId = sindicoId,
             TemplateId = template.Id,
             OcorrenciaId = ocorrenciaId,
-            MoradorId = morador.Id,
-            EmailDestinatario = morador.Pessoa.Email,
+            MoradorId = ocupacao.MoradorId,
+            EmailDestinatario = ocupacao.Morador.Usuario.Email,
             Assunto = assunto,
             CorpoResolvido = corpo,
             ValorMulta = request.ValorMulta,
@@ -109,10 +107,10 @@ public class ComunicacaoService : IComunicacaoService
     }
 
     private static Dictionary<string, string> MontarVariaveisTemplate(
-        Ocorrencia ocorrencia, Morador morador, Usuario sindico, decimal? valorMulta, string? prazoResposta)
+        Ocorrencia ocorrencia, MoradorUnidade ocupacao, Usuario sindico, decimal? valorMulta, string? prazoResposta)
     {
-        var unidadeNum = morador.Unidade?.Numero ?? string.Empty;
-        var blocoNome = morador.Unidade?.Bloco?.Nome ?? string.Empty;
+        var unidadeNum = ocupacao.Unidade?.Numero ?? string.Empty;
+        var blocoNome = ocupacao.Unidade?.Bloco?.Nome ?? string.Empty;
 
         var prazoFormatado = string.Empty;
         if (!string.IsNullOrWhiteSpace(prazoResposta)
@@ -123,14 +121,14 @@ public class ComunicacaoService : IComunicacaoService
 
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["nome_morador"] = morador.Pessoa.Nome,
+            ["nome_morador"] = ocupacao.Morador.Usuario.Nome,
             ["unidade"] = unidadeNum,
             ["bloco"] = blocoNome,
             ["condominio"] = ocorrencia.Condominio.Nome,
             ["data_ocorrencia"] = ocorrencia.OcorreuEm.ToString("dd/MM/yyyy HH:mm", CultureInfo.GetCultureInfo("pt-BR")),
             ["descricao_ocorrencia"] = ocorrencia.Descricao,
             ["tipo_ocorrencia"] = ocorrencia.TipoOcorrencia,
-            ["nome_sindico"] = sindico.Pessoa.Nome,
+            ["nome_sindico"] = sindico.Nome,
             ["data_envio"] = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm", CultureInfo.GetCultureInfo("pt-BR")),
             ["valor_multa"] = valorMulta.HasValue ? valorMulta.Value.ToString("F2", CultureInfo.InvariantCulture) : string.Empty,
             ["prazo_resposta"] = prazoFormatado

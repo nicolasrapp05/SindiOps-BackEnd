@@ -16,19 +16,34 @@ public static class UserCargoResolver
         ILogger? logger = null,
         CancellationToken ct = default)
     {
-        var cargoDb = await db.Usuarios.AsNoTracking()
+        var papeis = await db.Usuarios.AsNoTracking()
             .Where(u => u.Id == userId)
-            .Select(u => u.Cargo)
+            .Select(u => new
+            {
+                TemSindico = u.Sindico != null,
+                CargoFuncionario = u.Funcionario != null ? u.Funcionario.Cargo : null,
+            })
             .FirstOrDefaultAsync(ct);
 
-        if (!string.IsNullOrWhiteSpace(cargoDb))
+        if (papeis is null)
         {
-            logger?.LogDebug("Cargo resolvido via DB (Usuarios) para usuário {UserId}", userId);
-            return cargoDb;
+            logger?.LogDebug("Cargo resolvido via JWT/claims para usuário {UserId}", userId);
+            return ResolveFromClaims(user, logger);
         }
 
-        logger?.LogDebug("Cargo resolvido via JWT/claims para usuário {UserId}", userId);
-        return ResolveFromClaims(user, logger);
+        if (papeis.TemSindico)
+        {
+            logger?.LogDebug("Cargo de síndico resolvido via DB para usuário {UserId}", userId);
+            return CargoConstants.Sindico;
+        }
+
+        if (!string.IsNullOrWhiteSpace(papeis.CargoFuncionario))
+        {
+            logger?.LogDebug("Cargo de funcionário resolvido via DB para usuário {UserId}", userId);
+            return papeis.CargoFuncionario;
+        }
+
+        return string.Empty;
     }
 
     private static string ResolveFromClaims(

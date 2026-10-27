@@ -1,4 +1,5 @@
 using AutoMapper;
+using SindiOps.API.Constants;
 using SindiOps.API.DTOs.Responses;
 using SindiOps.API.Entities;
 
@@ -15,22 +16,18 @@ public class OcorrenciaProfile : Profile
                 s.Descricao.Length > DescricaoListagemMax
                     ? s.Descricao.Substring(0, DescricaoListagemMax)
                     : s.Descricao))
-            .ForMember(d => d.Morador, o => o.MapFrom(s => s.Morador))
+            .ForMember(d => d.Morador, o => o.MapFrom(s => MapMorador(s)))
             .ForMember(d => d.Bloco, o => o.MapFrom(s => s.Bloco))
             .ForMember(d => d.Unidade, o => o.MapFrom(s => s.Unidade))
-            .ForMember(d => d.RegistradoPor, o => o.MapFrom(s => new PessoaRefResponse
-            {
-                Id = s.RegistradoPor.Id,
-                Nome = s.RegistradoPor.Pessoa.Nome,
-                Cargo = s.RegistradoPor.Cargo,
-            }))
+            .ForMember(d => d.RegistradoPor, o => o.MapFrom(s => s.RegistradoPor))
             .ForMember(d => d.TotalMidias, o => o.MapFrom(s => s.Midias.Count));
 
-        CreateMap<Morador, MoradorOcorrenciaRefResponse>()
-            .ForMember(d => d.Nome, o => o.MapFrom(s => s.Pessoa.Nome))
-            .ForMember(d => d.Email, o => o.MapFrom(s => s.Pessoa.Email))
-            .ForMember(d => d.Telefone, o => o.MapFrom(s => s.Pessoa.Telefone))
-            .ForMember(d => d.Unidade, o => o.MapFrom(s => s.Unidade));
+        CreateMap<Usuario, PessoaRefResponse>()
+            .ForMember(d => d.Nome, o => o.MapFrom(s => s.Nome))
+            .ForMember(d => d.Cargo, o => o.MapFrom(s =>
+                s.Sindico != null
+                    ? CargoConstants.Sindico
+                    : s.Funcionario != null ? s.Funcionario.Cargo : null));
 
         CreateMap<Unidade, UnidadeNumeroRefResponse>();
 
@@ -42,5 +39,30 @@ public class OcorrenciaProfile : Profile
             .ForMember(d => d.Midias, o => o.Ignore())
             .ForMember(d => d.EmailLogs, o => o.MapFrom(s =>
                 s.EmailLogs.OrderByDescending(e => e.EnviadoEm)));
+    }
+
+    private static MoradorOcorrenciaRefResponse? MapMorador(Ocorrencia ocorrencia)
+    {
+        if (ocorrencia.Morador is null)
+            return null;
+
+        var ocupacao = ocorrencia.Morador.Unidades
+                .FirstOrDefault(u => ocorrencia.UnidadeId != null && u.UnidadeId == ocorrencia.UnidadeId)
+            ?? ocorrencia.Morador.Unidades.FirstOrDefault();
+
+        if (ocupacao is null)
+            return null;
+
+        return new MoradorOcorrenciaRefResponse
+        {
+            Id = ocupacao.Id,
+            Nome = ocorrencia.Morador.Usuario.Nome,
+            Email = ocorrencia.Morador.Usuario.Email,
+            Telefone = ocorrencia.Morador.Usuario.Telefone,
+            Unidade = new UnidadeNumeroRefResponse
+            {
+                Numero = ocupacao.Unidade?.Numero ?? ocorrencia.Unidade?.Numero ?? string.Empty,
+            },
+        };
     }
 }

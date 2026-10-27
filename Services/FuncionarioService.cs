@@ -42,8 +42,8 @@ public class FuncionarioService : IFuncionarioService
 
     public async Task<List<FuncionarioResponse>> GetAllAsync(Guid sindicoId, string? cargo, bool? ativo)
     {
-        var query = _db.Usuarios
-            .Include(f => f.Pessoa)
+        var query = _db.Funcionarios
+            .Include(f => f.Usuario)
             .Include(f => f.CondominiosAcesso)
             .ThenInclude(fc => fc.Condominio)
             .Where(f => f.SindicoId == sindicoId);
@@ -52,10 +52,10 @@ public class FuncionarioService : IFuncionarioService
             query = query.Where(f => f.Cargo == cargo);
 
         if (ativo.HasValue)
-            query = query.Where(f => f.Ativo == ativo.Value);
+            query = query.Where(f => f.Usuario.Ativo == ativo.Value);
 
         var responses = _mapper.Map<List<FuncionarioResponse>>(
-            await query.OrderBy(f => f.Pessoa.Nome).ToListAsync());
+            await query.OrderBy(f => f.Usuario.Nome).ToListAsync());
 
         await EnrichConviteStatusAsync(responses);
         return responses;
@@ -63,8 +63,8 @@ public class FuncionarioService : IFuncionarioService
 
     public async Task<FuncionarioResponse> GetByIdAsync(Guid id, Guid sindicoId)
     {
-        var funcionario = await _db.Usuarios
-            .Include(f => f.Pessoa)
+        var funcionario = await _db.Funcionarios
+            .Include(f => f.Usuario)
             .Include(f => f.CondominiosAcesso)
             .ThenInclude(fc => fc.Condominio)
             .FirstOrDefaultAsync(f => f.Id == id && f.SindicoId == sindicoId)
@@ -93,77 +93,84 @@ public class FuncionarioService : IFuncionarioService
 
         await ValidarCondominiosDoSindicoAsync(request.CondominioIds, sindicoId);
 
-        var funcionarioId = Guid.NewGuid();
+        var usuario = await _db.Usuarios
+            .Include(u => u.Morador)
+            .FirstOrDefaultAsync(u =>
+                u.Email.ToLower() == emailNormalizado &&
+                u.Sindico == null &&
+                u.Funcionario == null &&
+                u.Morador != null &&
+                u.Morador.Unidades.Any(o => o.Unidade.Condominio.SindicoId == sindicoId));
+
+        var criouUsuario = usuario is null;
+        if (usuario is null)
+        {
+            usuario = new Usuario
+            {
+                Id = Guid.NewGuid(),
+                Nome = nome,
+                Email = email,
+                Ativo = true,
+                CriadoEm = DateTime.UtcNow,
+            };
+        }
+        else
+        {
+            usuario.Nome = nome;
+            usuario.Ativo = true;
+            usuario.AtualizadoEm = DateTime.UtcNow;
+        }
 
         await _supabaseAuth.CreateUserWithPasswordAsync(
-            funcionarioId,
+            usuario.Id,
             email,
             Guid.NewGuid().ToString("N") + "Aa1!",
             nome,
             request.Cargo);
 
+        var funcionario = new Funcionario
+        {
+            Id = Guid.NewGuid(),
+            Usuario = usuario,
+            UsuarioId = usuario.Id,
+            SindicoId = sindicoId,
+            Cargo = request.Cargo,
+            CriadoEm = DateTime.UtcNow
+        };
+
+        await using var tx = await _db.Database.BeginTransactionAsync();
         try
         {
-            var pessoa = await _db.Pessoas
-                .FirstOrDefaultAsync(p =>
-                    p.Usuario == null &&
-                    p.Email.ToLower() == emailNormalizado &&
-                    p.Moradores.Any(m => m.Unidade.Condominio.SindicoId == sindicoId));
+            if (criouUsuario)
+                _db.Usuarios.Add(usuario);
 
-            if (pessoa is null)
-            {
-                pessoa = new Pessoa
-                {
-                    Id = Guid.NewGuid(),
-                    Nome = nome,
-                    Email = email,
-                    CriadoEm = DateTime.UtcNow,
-                };
-                _db.Pessoas.Add(pessoa);
-            }
-            else
-            {
-                pessoa.Nome = nome;
-                pessoa.AtualizadoEm = DateTime.UtcNow;
-            }
-
-            var funcionario = new Usuario
-            {
-                Id = funcionarioId,
-                PessoaId = pessoa.Id,
-                SindicoId = sindicoId,
-                Cargo = request.Cargo,
-                Ativo = true,
-                CriadoEm = DateTime.UtcNow
-            };
-
-            _db.Usuarios.Add(funcionario);
+            _db.Funcionarios.Add(funcionario);
             await _db.SaveChangesAsync();
-
             await SincronizarCondominiosAcessoAsync(funcionario.Id, request.CondominioIds);
-
-            var conviteEnviado = await EnviarConviteAsync(nome, email);
-
-            var response = await CarregarResponseAsync(funcionario.Id, sindicoId);
-            response.ConviteEnviado = conviteEnviado;
-            response.ConvitePendente = true;
-            return response;
+            await tx.CommitAsync();
         }
         catch
         {
-            await _supabaseAuth.DeleteUserAsync(funcionarioId);
+            await tx.RollbackAsync();
+            await _supabaseAuth.DeleteUserAsync(usuario.Id);
             throw;
         }
+
+        var conviteEnviado = await EnviarConviteAsync(nome, email);
+        var response = await CarregarResponseAsync(funcionario.Id, sindicoId);
+        response.ConviteEnviado = conviteEnviado;
+        response.ConvitePendente = true;
+        return response;
     }
 
     public async Task<FuncionarioResponse> ReenviarConviteAsync(Guid id, Guid sindicoId)
     {
-        var funcionario = await _db.Usuarios
-            .Include(f => f.Pessoa)
+        var funcionario = await _db.Funcionarios
+            .Include(f => f.Usuario)
             .FirstOrDefaultAsync(f => f.Id == id && f.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Funcionário não encontrado");
 
-        if (!funcionario.Ativo)
+        if (!funcionario.Usuario.Ativo)
         {
             throw new ValidationException(new[]
             {
@@ -171,7 +178,7 @@ public class FuncionarioService : IFuncionarioService
             });
         }
 
-        var lastSignIn = await _supabaseAuth.GetLastSignInAtAsync(funcionario.Id);
+        var lastSignIn = await _supabaseAuth.GetLastSignInAtAsync(funcionario.UsuarioId);
         if (lastSignIn is not null)
         {
             throw new ValidationException(new[]
@@ -188,7 +195,7 @@ public class FuncionarioService : IFuncionarioService
             });
         }
 
-        var conviteEnviado = await EnviarConviteAsync(funcionario.Pessoa.Nome, funcionario.Pessoa.Email);
+        var conviteEnviado = await EnviarConviteAsync(funcionario.Usuario.Nome, funcionario.Usuario.Email);
         if (!conviteEnviado)
         {
             throw new ValidationException(new[]
@@ -207,32 +214,34 @@ public class FuncionarioService : IFuncionarioService
 
     public async Task<FuncionarioResponse> UpdateAsync(Guid id, UpdateFuncionarioRequest request, Guid sindicoId)
     {
-        var funcionario = await _db.Usuarios
-            .Include(f => f.Pessoa)
+        var funcionario = await _db.Funcionarios
+            .Include(f => f.Usuario)
             .FirstOrDefaultAsync(f => f.Id == id && f.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Funcionário não encontrado");
 
         await ValidarCondominiosDoSindicoAsync(request.CondominioIds, sindicoId);
 
-        funcionario.Pessoa.Nome = request.Nome;
-        funcionario.Pessoa.AtualizadoEm = DateTime.UtcNow;
+        funcionario.Usuario.Nome = request.Nome;
+        funcionario.Usuario.AtualizadoEm = DateTime.UtcNow;
         funcionario.Cargo = request.Cargo;
         funcionario.AtualizadoEm = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
         await SincronizarCondominiosAcessoAsync(funcionario.Id, request.CondominioIds);
-        await _supabaseAuth.SyncUserMetadataAsync(funcionario.Id, funcionario.Pessoa.Nome, funcionario.Cargo);
+        await _supabaseAuth.SyncUserMetadataAsync(funcionario.UsuarioId, funcionario.Usuario.Nome, funcionario.Cargo);
 
         return await GetByIdAsync(funcionario.Id, sindicoId);
     }
 
     public async Task<FuncionarioResponse> AtivarAsync(Guid id, Guid sindicoId)
     {
-        var funcionario = await _db.Usuarios
+        var funcionario = await _db.Funcionarios
+            .Include(f => f.Usuario)
             .FirstOrDefaultAsync(f => f.Id == id && f.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Funcionário não encontrado");
 
-        funcionario.Ativo = true;
+        funcionario.Usuario.Ativo = true;
+        funcionario.Usuario.AtualizadoEm = DateTime.UtcNow;
         funcionario.AtualizadoEm = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
@@ -241,14 +250,16 @@ public class FuncionarioService : IFuncionarioService
 
     public async Task<FuncionarioResponse> DesativarAsync(Guid id, Guid sindicoId, Guid currentUserId)
     {
-        if (id == currentUserId)
-            throw new UnauthorizedAccessException("O síndico não pode desativar a si mesmo");
-
-        var funcionario = await _db.Usuarios
+        var funcionario = await _db.Funcionarios
+            .Include(f => f.Usuario)
             .FirstOrDefaultAsync(f => f.Id == id && f.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Funcionário não encontrado");
 
-        funcionario.Ativo = false;
+        if (funcionario.UsuarioId == currentUserId)
+            throw new UnauthorizedAccessException("O síndico não pode desativar a si mesmo");
+
+        funcionario.Usuario.Ativo = false;
+        funcionario.Usuario.AtualizadoEm = DateTime.UtcNow;
         funcionario.AtualizadoEm = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
@@ -257,20 +268,21 @@ public class FuncionarioService : IFuncionarioService
 
     public async Task DeleteAsync(Guid id, Guid sindicoId, Guid currentUserId)
     {
-        if (id == currentUserId)
-            throw new UnauthorizedAccessException("O síndico não pode excluir a si mesmo");
-
-        var funcionario = await _db.Usuarios
-            .Include(f => f.Pessoa)
+        var funcionario = await _db.Funcionarios
+            .Include(f => f.Usuario)
             .FirstOrDefaultAsync(f => f.Id == id && f.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Funcionário não encontrado");
 
+        if (funcionario.UsuarioId == currentUserId)
+            throw new UnauthorizedAccessException("O síndico não pode excluir a si mesmo");
+
+        var usuarioId = funcionario.UsuarioId;
         var temVinculos =
-            await _db.Ocorrencias.AnyAsync(o => o.RegistradoPorId == id)
-            || await _db.EmailLogs.AnyAsync(e => e.EnviadoPorId == id)
-            || await _db.Solicitacoes.AnyAsync(s => s.SolicitadoPorId == id)
-            || await _db.SolicitacoesCompra.AnyAsync(s => s.AprovadoPorId == id)
-            || await _db.MidiasOcorrencia.AnyAsync(m => m.EnviadoPorId == id);
+            await _db.Ocorrencias.AnyAsync(o => o.RegistradoPorId == usuarioId)
+            || await _db.EmailLogs.AnyAsync(e => e.EnviadoPorId == usuarioId)
+            || await _db.Solicitacoes.AnyAsync(s => s.SolicitadoPorId == usuarioId)
+            || await _db.SolicitacoesCompra.AnyAsync(s => s.AprovadoPorId == usuarioId)
+            || await _db.MidiasOcorrencia.AnyAsync(m => m.EnviadoPorId == usuarioId);
 
         if (temVinculos)
         {
@@ -278,19 +290,21 @@ public class FuncionarioService : IFuncionarioService
                 "Não é possível excluir um funcionário com registros vinculados no sistema. Desative-o em vez disso.");
         }
 
-        var pessoa = funcionario.Pessoa;
-        var pessoaId = pessoa.Id;
-        _db.Usuarios.Remove(funcionario);
+        _db.Funcionarios.Remove(funcionario);
         await _db.SaveChangesAsync();
 
-        var pessoaEmUso = await _db.Moradores.IgnoreQueryFilters().AnyAsync(m => m.PessoaId == pessoaId);
-        if (!pessoaEmUso)
+        var usuarioEmUso =
+            await _db.Moradores.AnyAsync(m => m.UsuarioId == usuarioId)
+            || await _db.Sindicos.AnyAsync(s => s.UsuarioId == usuarioId);
+
+        if (!usuarioEmUso)
         {
-            _db.Pessoas.Remove(pessoa);
+            var usuario = await _db.Usuarios.FirstAsync(u => u.Id == usuarioId);
+            _db.Usuarios.Remove(usuario);
             await _db.SaveChangesAsync();
         }
 
-        await _supabaseAuth.DeleteUserAsync(id);
+        await _supabaseAuth.DeleteUserAsync(usuarioId);
     }
 
     private async Task ValidarCondominiosDoSindicoAsync(IReadOnlyCollection<Guid> condominioIds, Guid sindicoId)
@@ -322,20 +336,20 @@ public class FuncionarioService : IFuncionarioService
     {
         var ids = condominioIds.Distinct().ToHashSet();
 
-        var atuais = await _db.UsuarioCondominios
-            .Where(fc => fc.UsuarioId == funcionarioId)
+        var atuais = await _db.FuncionarioCondominios
+            .Where(fc => fc.FuncionarioId == funcionarioId)
             .ToListAsync();
 
         var remover = atuais.Where(fc => !ids.Contains(fc.CondominioId)).ToList();
         if (remover.Count > 0)
-            _db.UsuarioCondominios.RemoveRange(remover);
+            _db.FuncionarioCondominios.RemoveRange(remover);
 
         var existentes = atuais.Select(fc => fc.CondominioId).ToHashSet();
         foreach (var condominioId in ids.Where(id => !existentes.Contains(id)))
         {
-            _db.UsuarioCondominios.Add(new UsuarioCondominio
+            _db.FuncionarioCondominios.Add(new FuncionarioCondominio
             {
-                UsuarioId = funcionarioId,
+                FuncionarioId = funcionarioId,
                 CondominioId = condominioId,
                 CriadoEm = DateTime.UtcNow,
             });
@@ -346,8 +360,8 @@ public class FuncionarioService : IFuncionarioService
 
     private async Task<FuncionarioResponse> CarregarResponseAsync(Guid funcionarioId, Guid sindicoId)
     {
-        var funcionario = await _db.Usuarios
-            .Include(f => f.Pessoa)
+        var funcionario = await _db.Funcionarios
+            .Include(f => f.Usuario)
             .Include(f => f.CondominiosAcesso)
             .ThenInclude(fc => fc.Condominio)
             .FirstAsync(f => f.Id == funcionarioId && f.SindicoId == sindicoId);
@@ -360,9 +374,21 @@ public class FuncionarioService : IFuncionarioService
         if (responses.Count == 0)
             return;
 
+        var ids = responses.Select(r => r.Id).ToList();
+        var authPorFuncionario = await _db.Funcionarios.AsNoTracking()
+            .Where(f => ids.Contains(f.Id))
+            .Select(f => new { f.Id, f.UsuarioId })
+            .ToDictionaryAsync(f => f.Id, f => f.UsuarioId);
+
         var tasks = responses.Select(async response =>
         {
-            var lastSignIn = await _supabaseAuth.GetLastSignInAtAsync(response.Id);
+            if (!authPorFuncionario.TryGetValue(response.Id, out var authId))
+            {
+                response.ConvitePendente = true;
+                return;
+            }
+
+            var lastSignIn = await _supabaseAuth.GetLastSignInAtAsync(authId);
             response.ConvitePendente = lastSignIn is null;
         });
 
@@ -393,4 +419,3 @@ public class FuncionarioService : IFuncionarioService
 
     private string GetFrontendUrl() => FrontendUrlResolver.Resolve(_configuration);
 }
-

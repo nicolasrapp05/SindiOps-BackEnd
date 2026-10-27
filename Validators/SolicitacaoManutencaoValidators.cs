@@ -10,6 +10,10 @@ public class SolicitacaoManutencaoQueryParamsValidator : AbstractValidator<Solic
     {
         RuleFor(x => x.CondominioId)
             .NotEmpty().WithMessage("condominioId é obrigatório");
+
+        RuleFor(x => x.SituacaoOrcamento)
+            .Must(s => string.IsNullOrWhiteSpace(s) || SituacaoOrcamento.Todas.Contains(s))
+            .WithMessage($"Situação inválida. Valores aceitos: {string.Join(", ", SituacaoOrcamento.Todas)}");
     }
 }
 

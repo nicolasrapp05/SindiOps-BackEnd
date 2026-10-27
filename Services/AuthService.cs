@@ -77,25 +77,25 @@ public class AuthService : IAuthService
         await _supabaseAuth.CreateUserWithPasswordAsync(
             id, email, request.Senha, nome, Constants.CargoConstants.Sindico);
 
-        var pessoa = new Entities.Pessoa
-        {
-            Id = Guid.NewGuid(),
-            Nome = nome,
-            Email = email,
-            CriadoEm = DateTime.UtcNow,
-        };
-
-        var sindico = new Entities.Usuario
+        var usuario = new Entities.Usuario
         {
             Id = id,
-            PessoaId = pessoa.Id,
-            Cargo = Constants.CargoConstants.Sindico,
+            Nome = nome,
+            Email = email,
             Ativo = true,
             CriadoEm = DateTime.UtcNow,
         };
 
-        _db.Pessoas.Add(pessoa);
-        _db.Usuarios.Add(sindico);
+        var sindico = new Entities.Sindico
+        {
+            Id = Guid.NewGuid(),
+            UsuarioId = id,
+            Usuario = usuario,
+            CriadoEm = DateTime.UtcNow,
+        };
+
+        _db.Usuarios.Add(usuario);
+        _db.Sindicos.Add(sindico);
         await _db.SaveChangesAsync();
 
         return new CadastroSindicoResponse
