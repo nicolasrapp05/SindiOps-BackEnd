@@ -6,6 +6,7 @@ public class SolicitacaoCompraQueryParams
     public string? Search { get; set; }
     public string? Status { get; set; }
     public string? Categoria { get; set; }
+    public string? SituacaoCotacao { get; set; }
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 20;
 }
