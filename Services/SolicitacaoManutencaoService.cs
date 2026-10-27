@@ -40,8 +40,6 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
             throw new KeyNotFoundException("Condomínio não encontrado");
 
         var query = _db.SolicitacoesManutencao
-            .Include(s => s.Fornecedor)
-            .Include(s => s.SolicitadoPor).ThenInclude(u => u.Pessoa)
             .Where(s => s.CondominioId == q.CondominioId);
 
         if (!string.IsNullOrWhiteSpace(q.Search))
@@ -62,11 +60,21 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
         if (!string.IsNullOrWhiteSpace(q.Responsavel))
             query = query.Where(s => s.Responsavel == q.Responsavel);
 
+        if (!string.IsNullOrWhiteSpace(q.SituacaoOrcamento))
+            query = FiltrarSituacao(query, q.SituacaoOrcamento);
+
+        if (q.PendenteOrcamento == true)
+        {
+            query = query.Where(s =>
+                (s.Status == SolicitacaoStatus.Nova || s.Status == SolicitacaoStatus.EmAndamento) &&
+                s.OrcamentoAprovadoPorId == null);
+        }
+
         var totalCount = await query.CountAsync();
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);
 
-        var items = await query
+        var items = await ComReferencias(query)
             .OrderByDescending(s => s.CriadoEm)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -84,9 +92,7 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
     {
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
 
-        var s = await _db.SolicitacoesManutencao
-            .Include(x => x.Fornecedor)
-            .Include(x => x.SolicitadoPor).ThenInclude(u => u.Pessoa)
+        var s = await ComReferencias(_db.SolicitacoesManutencao)
             .FirstOrDefaultAsync(x => x.Id == id && x.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 
@@ -134,7 +140,7 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
 
         await _db.Entry(entity).Reference(x => x.Fornecedor).LoadAsync();
         await _db.Entry(entity).Reference(x => x.SolicitadoPor).LoadAsync();
-        await _db.Entry(entity.SolicitadoPor).Reference(u => u.Pessoa).LoadAsync();
+        await UsuarioPapeis.CarregarAsync(_db, entity.SolicitadoPor);
 
         return _mapper.Map<SolicitacaoManutencaoResponse>(entity);
     }
@@ -143,9 +149,7 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
     {
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
 
-        var entity = await _db.SolicitacoesManutencao
-            .Include(s => s.Fornecedor)
-            .Include(s => s.SolicitadoPor).ThenInclude(u => u.Pessoa)
+        var entity = await ComReferencias(_db.SolicitacoesManutencao)
             .FirstOrDefaultAsync(s => s.Id == id && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 
@@ -163,6 +167,17 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
         else if (fornecedorId.HasValue &&
                  !await _db.Fornecedores.AnyAsync(f => f.Id == fornecedorId && f.SindicoId == sindicoId))
             throw new KeyNotFoundException("Fornecedor não encontrado");
+
+        if (entity.OrcamentoAprovadoPorId != null &&
+            (entity.FornecedorId != fornecedorId || entity.Responsavel != request.Responsavel))
+        {
+            throw new ValidationException(new[]
+            {
+                new ValidationFailure(
+                    "fornecedorId",
+                    "Não é possível alterar o responsável ou o fornecedor enquanto o orçamento estiver aprovado.")
+            });
+        }
 
         entity.CondominioId = request.CondominioId;
         entity.FornecedorId = fornecedorId;
@@ -182,9 +197,7 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
     {
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
 
-        var entity = await _db.SolicitacoesManutencao
-            .Include(s => s.Fornecedor)
-            .Include(s => s.SolicitadoPor).ThenInclude(u => u.Pessoa)
+        var entity = await ComReferencias(_db.SolicitacoesManutencao)
             .FirstOrDefaultAsync(s => s.Id == id && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 
@@ -206,6 +219,41 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
 
         return _mapper.Map<SolicitacaoManutencaoResponse>(entity);
     }
+
+    private static IQueryable<SolicitacaoManutencao> ComReferencias(IQueryable<SolicitacaoManutencao> query) =>
+        query
+            .Include(s => s.Fornecedor)
+            .Include(s => s.Orcamentos)
+            .Include(s => s.OrcamentoAprovadoPor!).ThenInclude(u => u.Sindico)
+            .Include(s => s.OrcamentoAprovadoPor!).ThenInclude(u => u.Funcionario)
+            .Include(s => s.SolicitadoPor).ThenInclude(u => u.Sindico)
+            .Include(s => s.SolicitadoPor).ThenInclude(u => u.Funcionario);
+
+    private static IQueryable<SolicitacaoManutencao> FiltrarSituacao(
+        IQueryable<SolicitacaoManutencao> query, string situacao) =>
+        situacao switch
+        {
+            SituacaoOrcamento.Encerrado => query.Where(s =>
+                (s.Status == SolicitacaoStatus.Finalizada || s.Status == SolicitacaoStatus.Cancelada) &&
+                s.Orcamentos.Any()),
+            SituacaoOrcamento.Aprovado => query.Where(s =>
+                s.OrcamentoAprovadoPorId != null &&
+                s.Status != SolicitacaoStatus.Finalizada &&
+                s.Status != SolicitacaoStatus.Cancelada),
+            SituacaoOrcamento.PropostaSelecionada => query.Where(s =>
+                s.OrcamentoAprovadoPorId == null &&
+                s.Status != SolicitacaoStatus.Finalizada &&
+                s.Status != SolicitacaoStatus.Cancelada &&
+                s.Orcamentos.Any(o => o.Selecionada)),
+            SituacaoOrcamento.AguardandoProposta => query.Where(s =>
+                s.OrcamentoAprovadoPorId == null &&
+                s.Status != SolicitacaoStatus.Finalizada &&
+                s.Status != SolicitacaoStatus.Cancelada &&
+                s.Orcamentos.Any() &&
+                !s.Orcamentos.Any(o => o.Selecionada)),
+            SituacaoOrcamento.SemOrcamento => query.Where(s => !s.Orcamentos.Any()),
+            _ => query,
+        };
 
     private static bool TransicaoStatusPermitida(string atual, string novo)
     {

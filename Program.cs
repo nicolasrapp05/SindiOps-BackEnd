@@ -112,6 +112,7 @@ builder.Services.AddScoped<IFornecedorService, FornecedorService>();
 builder.Services.AddScoped<IContratoService, ContratoService>();
 builder.Services.AddScoped<IManutencaoObrigatoriaService, ManutencaoObrigatoriaService>();
 builder.Services.AddScoped<ISolicitacaoManutencaoService, SolicitacaoManutencaoService>();
+builder.Services.AddScoped<IOrcamentoManutencaoService, OrcamentoManutencaoService>();
 builder.Services.AddScoped<ISolicitacaoCompraService, SolicitacaoCompraService>();
 builder.Services.AddScoped<IOcorrenciaService, OcorrenciaService>();
 builder.Services.AddScoped<IEmailTemplateService, EmailTemplateService>();

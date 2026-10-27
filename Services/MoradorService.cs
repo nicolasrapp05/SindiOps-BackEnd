@@ -30,39 +30,36 @@ public class MoradorService : IMoradorService
     {
         await VerificarCondominioAsync(condominioId, sindicoId);
 
-        var query = _db.Moradores
-            .Include(m => m.Pessoa)
-            .Include(m => m.Unidade)
-            .ThenInclude(u => u.Bloco)
-            .Where(m => m.Unidade.CondominioId == condominioId);
+        var query = QueryDaCarteira(sindicoId)
+            .Where(o => o.Unidade.CondominioId == condominioId);
 
         if (q.BlocoId.HasValue)
-            query = query.Where(m => m.Unidade.BlocoId == q.BlocoId.Value);
+            query = query.Where(o => o.Unidade.BlocoId == q.BlocoId.Value);
 
         if (q.UnidadeId.HasValue)
-            query = query.Where(m => m.UnidadeId == q.UnidadeId.Value);
+            query = query.Where(o => o.UnidadeId == q.UnidadeId.Value);
 
         if (!string.IsNullOrWhiteSpace(q.Search))
         {
             var search = q.Search.ToLower();
-            query = query.Where(m =>
-                m.Pessoa.Nome.ToLower().Contains(search) ||
-                m.Pessoa.Email.ToLower().Contains(search));
+            query = query.Where(o =>
+                o.Morador.Usuario.Nome.ToLower().Contains(search) ||
+                o.Morador.Usuario.Email.ToLower().Contains(search));
         }
 
         var totalCount = await query.CountAsync();
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);
 
-        var moradores = await query
-            .OrderBy(m => m.Pessoa.Nome)
+        var ocupacoes = await query
+            .OrderBy(o => o.Morador.Usuario.Nome)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
 
         return new PaginatedResponse<MoradorResponse>
         {
-            Data = _mapper.Map<List<MoradorResponse>>(moradores),
+            Data = _mapper.Map<List<MoradorResponse>>(ocupacoes),
             TotalCount = totalCount,
             PageSize = pageSize
         };
@@ -70,12 +67,13 @@ public class MoradorService : IMoradorService
 
     public async Task<MoradorDetalheResponse> GetByIdAsync(Guid id, Guid sindicoId)
     {
-        var morador = await QueryDaCarteira(sindicoId)
-            .Include(m => m.EmailLogs.OrderByDescending(e => e.EnviadoEm).Take(5))
-            .FirstOrDefaultAsync(m => m.Id == id)
+        var ocupacao = await QueryDaCarteira(sindicoId)
+            .Include(o => o.Morador)
+            .ThenInclude(m => m.EmailLogs.OrderByDescending(e => e.EnviadoEm).Take(5))
+            .FirstOrDefaultAsync(o => o.Id == id)
             ?? throw new KeyNotFoundException("Morador não encontrado");
 
-        return _mapper.Map<MoradorDetalheResponse>(morador);
+        return _mapper.Map<MoradorDetalheResponse>(ocupacao);
     }
 
     public async Task<MoradorResponse> CreateAsync(CreateMoradorRequest request, Guid sindicoId)
@@ -89,50 +87,60 @@ public class MoradorService : IMoradorService
 
         await GarantirProprietarioUnicoAsync(request.UnidadeId, request.Papel, null);
 
-        var pessoa = await ResolverPessoaDaCarteiraAsync(request.Nome, request.Email, request.Telefone, sindicoId);
+        var usuario = await ResolverUsuarioDaCarteiraAsync(
+            request.Nome, request.Email, request.Telefone, sindicoId);
+        var morador = await ObterOuCriarMoradorAsync(usuario);
 
-        var jaOcupa = pessoa.Id != Guid.Empty && await _db.Moradores
-            .AnyAsync(m => m.UnidadeId == request.UnidadeId && m.PessoaId == pessoa.Id);
+        var jaOcupa = await _db.MoradorUnidades
+            .AnyAsync(o => o.UnidadeId == request.UnidadeId && o.MoradorId == morador.Id);
         if (jaOcupa)
             throw new ValidationException(new[]
             {
                 new ValidationFailure("email", "Email já cadastrado nesta unidade")
             });
 
-        var morador = new Morador
+        var ocupacao = new MoradorUnidade
         {
-            Pessoa = pessoa,
+            Id = Guid.NewGuid(),
+            Morador = morador,
+            MoradorId = morador.Id,
             UnidadeId = request.UnidadeId,
             Unidade = unidade,
             Papel = request.Papel,
             CriadoEm = DateTime.UtcNow
         };
 
-        _db.Moradores.Add(morador);
+        _db.MoradorUnidades.Add(ocupacao);
         await _db.SaveChangesAsync();
 
-        return _mapper.Map<MoradorResponse>(morador);
+        return _mapper.Map<MoradorResponse>(ocupacao);
     }
 
     public async Task<MoradorResponse> UpdateAsync(Guid id, UpdateMoradorRequest request, Guid sindicoId)
     {
-        var morador = await QueryDaCarteira(sindicoId)
-            .Include(m => m.Pessoa)
-            .ThenInclude(p => p.Usuario)
-            .FirstOrDefaultAsync(m => m.Id == id)
+        var ocupacao = await QueryDaCarteira(sindicoId)
+            .Include(o => o.Morador)
+            .ThenInclude(m => m.Usuario)
+            .ThenInclude(u => u.Sindico)
+            .Include(o => o.Morador)
+            .ThenInclude(m => m.Usuario)
+            .ThenInclude(u => u.Funcionario)
+            .FirstOrDefaultAsync(o => o.Id == id)
             ?? throw new KeyNotFoundException("Morador não encontrado");
 
         var unidade = await _db.Unidades
             .Include(u => u.Bloco)
-            .FirstOrDefaultAsync(u => u.Id == request.UnidadeId && u.CondominioId == morador.Unidade.CondominioId)
+            .FirstOrDefaultAsync(u => u.Id == request.UnidadeId && u.CondominioId == ocupacao.Unidade.CondominioId)
             ?? throw new KeyNotFoundException("Unidade não encontrada neste condomínio");
 
-        await GarantirProprietarioUnicoAsync(request.UnidadeId, request.Papel, morador.Id);
+        await GarantirProprietarioUnicoAsync(request.UnidadeId, request.Papel, ocupacao.Id);
 
         var email = request.Email.Trim();
         var emailNorm = email.ToLowerInvariant();
-        if (morador.Pessoa.Usuario is not null &&
-            !string.Equals(morador.Pessoa.Email, email, StringComparison.OrdinalIgnoreCase))
+        var usuario = ocupacao.Morador.Usuario;
+
+        if (UsuarioPapeis.TemAcesso(usuario) &&
+            !string.Equals(usuario.Email, email, StringComparison.OrdinalIgnoreCase))
         {
             throw new ValidationException(new[]
             {
@@ -140,65 +148,70 @@ public class MoradorService : IMoradorService
             });
         }
 
-        var outraPessoa = await BuscarPessoaDaCarteiraAsync(emailNorm, sindicoId);
-        if (outraPessoa is not null && outraPessoa.Id != morador.PessoaId)
+        var outroUsuario = await BuscarUsuarioDaCarteiraAsync(emailNorm, sindicoId);
+        if (outroUsuario is not null && outroUsuario.Id != usuario.Id)
         {
-            var jaOcupa = await _db.Moradores
-                .AnyAsync(m => m.UnidadeId == request.UnidadeId && m.PessoaId == outraPessoa.Id && m.Id != id);
+            var outroMorador = await ObterOuCriarMoradorAsync(outroUsuario);
+            var jaOcupa = await _db.MoradorUnidades
+                .AnyAsync(o => o.UnidadeId == request.UnidadeId && o.MoradorId == outroMorador.Id && o.Id != id);
             if (jaOcupa)
                 throw new ValidationException(new[]
                 {
                     new ValidationFailure("email", "Email já cadastrado nesta unidade")
                 });
 
-            morador.PessoaId = outraPessoa.Id;
-            morador.Pessoa = outraPessoa;
+            ocupacao.MoradorId = outroMorador.Id;
+            ocupacao.Morador = outroMorador;
+            usuario = outroUsuario;
         }
 
-        if (morador.Pessoa.Usuario is null)
+        if (!UsuarioPapeis.TemAcesso(usuario))
         {
-            morador.Pessoa.Nome = request.Nome.Trim();
-            morador.Pessoa.Email = email;
-            morador.Pessoa.Telefone = string.IsNullOrWhiteSpace(request.Telefone) ? null : request.Telefone.Trim();
+            usuario.Nome = request.Nome.Trim();
+            usuario.Email = email;
+            usuario.Telefone = TelefoneOuNulo(request.Telefone);
         }
         else if (!string.IsNullOrWhiteSpace(request.Telefone))
         {
-            morador.Pessoa.Telefone = request.Telefone.Trim();
+            usuario.Telefone = request.Telefone.Trim();
         }
 
-        morador.Pessoa.AtualizadoEm = DateTime.UtcNow;
-        morador.UnidadeId = request.UnidadeId;
-        morador.Unidade = unidade;
-        morador.Papel = request.Papel;
-        morador.AtualizadoEm = DateTime.UtcNow;
+        usuario.AtualizadoEm = DateTime.UtcNow;
+        ocupacao.Morador.AtualizadoEm = DateTime.UtcNow;
+        ocupacao.UnidadeId = request.UnidadeId;
+        ocupacao.Unidade = unidade;
+        ocupacao.Papel = request.Papel;
+        ocupacao.AtualizadoEm = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
 
-        if (morador.Pessoa.Usuario is not null)
-            await _supabaseAuth.SyncUserMetadataAsync(morador.Pessoa.Usuario.Id, morador.Pessoa.Nome, morador.Pessoa.Usuario.Cargo);
+        if (UsuarioPapeis.TemAcesso(usuario))
+            await _supabaseAuth.SyncUserMetadataAsync(usuario.Id, usuario.Nome, UsuarioPapeis.Cargo(usuario));
 
-        return _mapper.Map<MoradorResponse>(morador);
+        return _mapper.Map<MoradorResponse>(ocupacao);
     }
 
     public async Task DeleteAsync(Guid id, Guid sindicoId)
     {
-        var morador = await QueryDaCarteira(sindicoId)
-            .FirstOrDefaultAsync(m => m.Id == id)
+        var ocupacao = await QueryDaCarteira(sindicoId)
+            .FirstOrDefaultAsync(o => o.Id == id)
             ?? throw new KeyNotFoundException("Morador não encontrado");
 
-        morador.DeletadoEm = DateTime.UtcNow;
+        ocupacao.DeletadoEm = DateTime.UtcNow;
         await _db.SaveChangesAsync();
     }
 
     public async Task<PaginatedResponse<EmailLogResumoResponse>> GetEmailLogsAsync(
         Guid moradorId, Guid sindicoId, int page, int pageSize)
     {
-        var pertence = await QueryDaCarteira(sindicoId).AnyAsync(m => m.Id == moradorId);
+        var ocupacao = await QueryDaCarteira(sindicoId)
+            .Select(o => new { o.Id, o.MoradorId })
+            .FirstOrDefaultAsync(o => o.Id == moradorId);
 
-        if (!pertence)
+        if (ocupacao is null)
             throw new KeyNotFoundException("Morador não encontrado");
 
-        var query = _db.EmailLogs.Where(e => e.MoradorId == moradorId);
+        var query = _db.EmailLogs.Where(e => e.MoradorId == ocupacao.MoradorId);
         var totalCount = await query.CountAsync();
         var size = Math.Clamp(pageSize, 1, 100);
 
@@ -223,12 +236,13 @@ public class MoradorService : IMoradorService
         };
     }
 
-    private IQueryable<Morador> QueryDaCarteira(Guid sindicoId) =>
-        _db.Moradores
-            .Include(m => m.Pessoa)
-            .Include(m => m.Unidade)
+    private IQueryable<MoradorUnidade> QueryDaCarteira(Guid sindicoId) =>
+        _db.MoradorUnidades
+            .Include(o => o.Morador)
+            .ThenInclude(m => m.Usuario)
+            .Include(o => o.Unidade)
             .ThenInclude(u => u.Bloco)
-            .Where(m => m.Unidade.Condominio.SindicoId == sindicoId);
+            .Where(o => o.Unidade.Condominio.SindicoId == sindicoId);
 
     private async Task VerificarCondominioAsync(Guid condominioId, Guid sindicoId)
     {
@@ -239,15 +253,15 @@ public class MoradorService : IMoradorService
             throw new KeyNotFoundException("Condomínio não encontrado");
     }
 
-    private async Task GarantirProprietarioUnicoAsync(Guid unidadeId, string papel, Guid? ignorarMoradorId)
+    private async Task GarantirProprietarioUnicoAsync(Guid unidadeId, string papel, Guid? ignorarOcupacaoId)
     {
         if (papel != MoradorPapel.Proprietario)
             return;
 
-        var jaTem = await _db.Moradores.AnyAsync(m =>
-            m.UnidadeId == unidadeId &&
-            m.Papel == MoradorPapel.Proprietario &&
-            m.Id != ignorarMoradorId);
+        var jaTem = await _db.MoradorUnidades.AnyAsync(o =>
+            o.UnidadeId == unidadeId &&
+            o.Papel == MoradorPapel.Proprietario &&
+            o.Id != ignorarOcupacaoId);
 
         if (jaTem)
             throw new ValidationException(new[]
@@ -256,44 +270,78 @@ public class MoradorService : IMoradorService
             });
     }
 
-    private async Task<Pessoa> ResolverPessoaDaCarteiraAsync(
+    private async Task<Usuario> ResolverUsuarioDaCarteiraAsync(
         string nome, string email, string? telefone, Guid sindicoId)
     {
         var emailNorm = email.Trim().ToLowerInvariant();
-        var existente = await BuscarPessoaDaCarteiraAsync(emailNorm, sindicoId);
+        var existente = await BuscarUsuarioDaCarteiraAsync(emailNorm, sindicoId);
         if (existente is not null)
         {
-            if (existente.Usuario is null)
+            if (!UsuarioPapeis.TemAcesso(existente))
             {
                 existente.Nome = nome.Trim();
-                existente.Telefone = string.IsNullOrWhiteSpace(telefone) ? null : telefone.Trim();
-                existente.AtualizadoEm = DateTime.UtcNow;
+                existente.Telefone = TelefoneOuNulo(telefone);
             }
-            else
+            else if (!string.IsNullOrWhiteSpace(telefone))
             {
-                existente.Telefone = string.IsNullOrWhiteSpace(telefone) ? existente.Telefone : telefone.Trim();
-                existente.AtualizadoEm = DateTime.UtcNow;
+                existente.Telefone = telefone.Trim();
             }
 
+            existente.AtualizadoEm = DateTime.UtcNow;
             return existente;
         }
 
-        var pessoa = new Pessoa
+        var usuario = new Usuario
         {
+            Id = Guid.NewGuid(),
             Nome = nome.Trim(),
             Email = email.Trim(),
-            Telefone = string.IsNullOrWhiteSpace(telefone) ? null : telefone.Trim(),
+            Telefone = TelefoneOuNulo(telefone),
+            Ativo = true,
             CriadoEm = DateTime.UtcNow
         };
-        _db.Pessoas.Add(pessoa);
-        return pessoa;
+        _db.Usuarios.Add(usuario);
+        return usuario;
     }
 
-    private Task<Pessoa?> BuscarPessoaDaCarteiraAsync(string emailNorm, Guid sindicoId) =>
-        _db.Pessoas
-            .Include(p => p.Usuario)
-            .FirstOrDefaultAsync(p =>
-                p.Email.ToLower() == emailNorm &&
-                (p.Moradores.Any(m => m.Unidade.Condominio.SindicoId == sindicoId)
-                 || (p.Usuario != null && (p.Usuario.Id == sindicoId || p.Usuario.SindicoId == sindicoId))));
+    private Task<Usuario?> BuscarUsuarioDaCarteiraAsync(string emailNorm, Guid sindicoId) =>
+        _db.Usuarios
+            .Include(u => u.Sindico)
+            .Include(u => u.Funcionario)
+            .Include(u => u.Morador)
+            .FirstOrDefaultAsync(u =>
+                u.Email.ToLower() == emailNorm &&
+                ((u.Morador != null && u.Morador.Unidades.Any(o => o.Unidade.Condominio.SindicoId == sindicoId))
+                 || (u.Sindico != null && u.Sindico.Id == sindicoId)
+                 || (u.Funcionario != null && u.Funcionario.SindicoId == sindicoId)));
+
+    private async Task<Morador> ObterOuCriarMoradorAsync(Usuario usuario)
+    {
+        if (usuario.Morador is not null)
+            return usuario.Morador;
+
+        var existente = usuario.Id == Guid.Empty
+            ? null
+            : await _db.Moradores.FirstOrDefaultAsync(m => m.UsuarioId == usuario.Id);
+
+        if (existente is not null)
+        {
+            usuario.Morador = existente;
+            return existente;
+        }
+
+        var morador = new Morador
+        {
+            Id = Guid.NewGuid(),
+            Usuario = usuario,
+            UsuarioId = usuario.Id,
+            CriadoEm = DateTime.UtcNow
+        };
+        usuario.Morador = morador;
+        _db.Moradores.Add(morador);
+        return morador;
+    }
+
+    private static string? TelefoneOuNulo(string? telefone) =>
+        string.IsNullOrWhiteSpace(telefone) ? null : telefone.Trim();
 }

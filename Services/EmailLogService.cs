@@ -24,22 +24,27 @@ public class EmailLogService : IEmailLogService
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
 
         var query = _db.EmailLogs.AsNoTracking()
-            .Include(e => e.Morador).ThenInclude(m => m.Pessoa)
+            .Include(e => e.Morador).ThenInclude(m => m.Usuario)
             .Include(e => e.Ocorrencia)
             .Include(e => e.Template)
-            .Include(e => e.EnviadoPor).ThenInclude(u => u.Pessoa)
+            .Include(e => e.EnviadoPor).ThenInclude(u => u.Sindico)
+            .Include(e => e.EnviadoPor).ThenInclude(u => u.Funcionario)
             .Where(e => e.SindicoId == sindicoId);
 
         if (q.CondominioId.HasValue)
         {
             var cid = q.CondominioId.Value;
             query = query.Where(e =>
-                e.Morador.Unidade.CondominioId == cid ||
+                e.Morador.Unidades.Any(u => u.Unidade.CondominioId == cid) ||
                 (e.Ocorrencia != null && e.Ocorrencia.CondominioId == cid));
         }
 
         if (q.MoradorId.HasValue)
-            query = query.Where(e => e.MoradorId == q.MoradorId.Value);
+        {
+            var moradorId = q.MoradorId.Value;
+            query = query.Where(e =>
+                e.MoradorId == moradorId || e.Morador.Unidades.Any(u => u.Id == moradorId));
+        }
 
         if (q.OcorrenciaId.HasValue)
             query = query.Where(e => e.OcorrenciaId == q.OcorrenciaId.Value);
@@ -54,7 +59,7 @@ public class EmailLogService : IEmailLogService
         {
             var term = q.Search.Trim().ToLower();
             query = query.Where(e =>
-                e.Morador.Pessoa.Nome.ToLower().Contains(term) ||
+                e.Morador.Usuario.Nome.ToLower().Contains(term) ||
                 e.EmailDestinatario.ToLower().Contains(term));
         }
 
@@ -96,10 +101,11 @@ public class EmailLogService : IEmailLogService
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
 
         var entity = await _db.EmailLogs.AsNoTracking()
-            .Include(e => e.Morador).ThenInclude(m => m.Pessoa)
+            .Include(e => e.Morador).ThenInclude(m => m.Usuario)
             .Include(e => e.Ocorrencia)
             .Include(e => e.Template)
-            .Include(e => e.EnviadoPor).ThenInclude(u => u.Pessoa)
+            .Include(e => e.EnviadoPor).ThenInclude(u => u.Sindico)
+            .Include(e => e.EnviadoPor).ThenInclude(u => u.Funcionario)
             .FirstOrDefaultAsync(e => e.Id == id && e.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Registo de e-mail não encontrado");
 

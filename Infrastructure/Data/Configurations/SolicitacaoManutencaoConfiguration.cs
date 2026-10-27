@@ -22,12 +22,19 @@ public class SolicitacaoManutencaoConfiguration : IEntityTypeConfiguration<Solic
         builder.Property(s => s.Responsavel).HasColumnName("responsavel");
         builder.Property(s => s.Descricao).HasColumnName("descricao");
         builder.Property(s => s.DataConclusao).HasColumnName("data_conclusao");
+        builder.Property(s => s.OrcamentoAprovadoPorId).HasColumnName("orcamento_aprovado_por_id");
 
         builder.HasIndex(s => s.FornecedorId);
+        builder.HasIndex(s => s.OrcamentoAprovadoPorId);
 
         builder.HasOne(s => s.Fornecedor)
             .WithMany()
             .HasForeignKey(s => s.FornecedorId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(s => s.OrcamentoAprovadoPor)
+            .WithMany()
+            .HasForeignKey(s => s.OrcamentoAprovadoPorId)
             .OnDelete(DeleteBehavior.SetNull);
     }
 }

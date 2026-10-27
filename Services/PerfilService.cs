@@ -29,12 +29,12 @@ public class PerfilService : IPerfilService
         var nome = request.Nome.Trim();
 
         var usuario = await _db.Usuarios
-            .Include(u => u.Pessoa)
+            .Include(u => u.Sindico)
+            .Include(u => u.Funcionario)
             .FirstOrDefaultAsync(u => u.Id == userId)
             ?? throw new UnauthorizedAccessException("Usuário não encontrado");
 
-        usuario.Pessoa.Nome = nome;
-        usuario.Pessoa.AtualizadoEm = DateTime.UtcNow;
+        usuario.Nome = nome;
         usuario.AtualizadoEm = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
@@ -46,7 +46,8 @@ public class PerfilService : IPerfilService
     private async Task<PerfilResponse> LoadPerfilAsync(Guid userId)
     {
         var usuario = await _db.Usuarios.AsNoTracking()
-            .Include(u => u.Pessoa)
+            .Include(u => u.Sindico)
+            .Include(u => u.Funcionario)
             .FirstOrDefaultAsync(u => u.Id == userId)
             ?? throw new UnauthorizedAccessException("Usuário não encontrado");
 
@@ -56,8 +57,8 @@ public class PerfilService : IPerfilService
     private static PerfilResponse Map(Entities.Usuario usuario) => new()
     {
         Id = usuario.Id,
-        Nome = usuario.Pessoa.Nome,
-        Email = usuario.Pessoa.Email,
-        Cargo = usuario.Cargo,
+        Nome = usuario.Nome,
+        Email = usuario.Email,
+        Cargo = UsuarioPapeis.Cargo(usuario),
     };
 }

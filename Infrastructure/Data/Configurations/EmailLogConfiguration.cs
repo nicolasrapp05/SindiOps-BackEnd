@@ -55,8 +55,8 @@ public class EmailLogConfiguration : IEntityTypeConfiguration<EmailLog>
             .HasForeignKey(e => e.MoradorId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Alinha com o query filter global de Morador (soft delete) — evita aviso EF10622.
-        builder.HasQueryFilter(e => e.Morador.DeletadoEm == null);
+        // Esconde o histórico quando a pessoa não tem mais nenhuma ocupação ativa.
+        builder.HasQueryFilter(e => e.Morador.Unidades.Any(u => u.DeletadoEm == null));
 
         builder.HasOne(e => e.EnviadoPor)
             .WithMany()

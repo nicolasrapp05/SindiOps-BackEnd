@@ -12,4 +12,9 @@ public class SolicitacaoManutencaoResponse
     public PessoaRefResponse RegistradoPor { get; set; } = null!;
     public DateTime CriadoEm { get; set; }
     public string? Descricao { get; set; }
+    public int TotalOrcamentos { get; set; }
+    public bool TemOrcamentoSelecionado { get; set; }
+    public bool OrcamentoAprovado { get; set; }
+    public string SituacaoOrcamento { get; set; } = string.Empty;
+    public PessoaRefResponse? OrcamentoAprovadoPor { get; set; }
 }

@@ -18,7 +18,7 @@ public class EmailLog
     public string StatusEntrega { get; set; } = EmailLogStatus.Sent;
     public DateTime CriadoEm { get; set; }
 
-    public Usuario Sindico { get; set; } = null!;
+    public Sindico Sindico { get; set; } = null!;
     public EmailTemplate? Template { get; set; }
     public Ocorrencia? Ocorrencia { get; set; }
     public Morador Morador { get; set; } = null!;

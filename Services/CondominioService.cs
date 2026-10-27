@@ -143,7 +143,7 @@ public class CondominioService : ICondominioService
 
         var hasOcorrencias = await _db.Ocorrencias.AnyAsync(o => o.CondominioId == id);
         var hasContratos = await _db.Contratos.AnyAsync(c => c.CondominioId == id);
-        var hasMoradores = await _db.Moradores.AnyAsync(m => m.Unidade.CondominioId == id);
+        var hasMoradores = await _db.MoradorUnidades.AnyAsync(m => m.Unidade.CondominioId == id);
 
         if (hasOcorrencias || hasContratos || hasMoradores)
             throw new InvalidOperationException(
@@ -220,7 +220,7 @@ public class CondominioService : ICondominioService
             .FirstOrDefaultAsync(b => b.Id == blocoId && b.CondominioId == condominioId)
             ?? throw new KeyNotFoundException("Bloco não encontrado");
 
-        var hasMoradores = await _db.Moradores.AnyAsync(m => m.Unidade.BlocoId == blocoId);
+        var hasMoradores = await _db.MoradorUnidades.AnyAsync(m => m.Unidade.BlocoId == blocoId);
         if (hasMoradores)
             throw new InvalidOperationException(
                 "Não é possível remover o bloco pois existem moradores vinculados às suas unidades");
@@ -272,7 +272,7 @@ public class CondominioService : ICondominioService
             .FirstOrDefaultAsync(u => u.Id == unidadeId && u.BlocoId == blocoId && u.CondominioId == condominioId)
             ?? throw new KeyNotFoundException("Unidade não encontrada");
 
-        var hasMoradores = await _db.Moradores.AnyAsync(m => m.UnidadeId == unidadeId);
+        var hasMoradores = await _db.MoradorUnidades.AnyAsync(m => m.UnidadeId == unidadeId);
         if (hasMoradores)
             throw new InvalidOperationException(
                 "Não é possível remover a unidade pois existem moradores vinculados a ela");

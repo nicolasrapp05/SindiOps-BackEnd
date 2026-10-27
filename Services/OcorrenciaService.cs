@@ -46,11 +46,12 @@ public class OcorrenciaService : IOcorrenciaService
             throw new KeyNotFoundException("Condomínio não encontrado");
 
         var query = _db.Ocorrencias
-            .Include(o => o.Morador)!.ThenInclude(m => m!.Pessoa)
-            .Include(o => o.Morador)!.ThenInclude(m => m!.Unidade)
+            .Include(o => o.Morador)!.ThenInclude(m => m!.Usuario)
+            .Include(o => o.Morador)!.ThenInclude(m => m!.Unidades).ThenInclude(u => u.Unidade)
             .Include(o => o.Bloco)
             .Include(o => o.Unidade)
-            .Include(o => o.RegistradoPor).ThenInclude(u => u.Pessoa)
+            .Include(o => o.RegistradoPor).ThenInclude(u => u.Sindico)
+            .Include(o => o.RegistradoPor).ThenInclude(u => u.Funcionario)
             .Include(o => o.Midias)
             .Where(o => o.CondominioId == q.CondominioId);
 
@@ -106,11 +107,12 @@ public class OcorrenciaService : IOcorrenciaService
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
 
         var entity = await _db.Ocorrencias
-            .Include(o => o.Morador)!.ThenInclude(m => m!.Pessoa)
-            .Include(o => o.Morador)!.ThenInclude(m => m!.Unidade)
+            .Include(o => o.Morador)!.ThenInclude(m => m!.Usuario)
+            .Include(o => o.Morador)!.ThenInclude(m => m!.Unidades).ThenInclude(u => u.Unidade)
             .Include(o => o.Bloco)
             .Include(o => o.Unidade)
-            .Include(o => o.RegistradoPor).ThenInclude(u => u.Pessoa)
+            .Include(o => o.RegistradoPor).ThenInclude(u => u.Sindico)
+            .Include(o => o.RegistradoPor).ThenInclude(u => u.Funcionario)
             .Include(o => o.Midias)
             .Include(o => o.EmailLogs)
             .FirstOrDefaultAsync(o => o.Id == id && o.Condominio.SindicoId == sindicoId)
@@ -147,7 +149,8 @@ public class OcorrenciaService : IOcorrenciaService
             });
 
         await ValidarCondominioAsync(request.CondominioId, sindicoId);
-        await ValidarReferenciasAsync(request.CondominioId, request.MoradorId, request.BlocoId, request.UnidadeId);
+        await ValidarReferenciasAsync(request.CondominioId, request.BlocoId, request.UnidadeId);
+        var moradorId = await ResolverMoradorDaOcupacaoAsync(request.CondominioId, request.MoradorId);
 
         var ocorreuEmUtc = ToPostgreTimestampUtc(request.OcorreuEm);
 
@@ -155,7 +158,7 @@ public class OcorrenciaService : IOcorrenciaService
         {
             CondominioId = request.CondominioId,
             RegistradoPorId = userId,
-            MoradorId = request.MoradorId,
+            MoradorId = moradorId,
             Origem = request.Origem,
             TipoLocal = request.TipoLocal,
             BlocoId = request.BlocoId,
@@ -193,10 +196,11 @@ public class OcorrenciaService : IOcorrenciaService
         if (entity.CondominioId != request.CondominioId)
             await ValidarCondominioAsync(request.CondominioId, sindicoId);
 
-        await ValidarReferenciasAsync(request.CondominioId, request.MoradorId, request.BlocoId, request.UnidadeId);
+        await ValidarReferenciasAsync(request.CondominioId, request.BlocoId, request.UnidadeId);
+        var moradorId = await ResolverMoradorDaOcupacaoAsync(request.CondominioId, request.MoradorId);
 
         entity.CondominioId = request.CondominioId;
-        entity.MoradorId = request.MoradorId;
+        entity.MoradorId = moradorId;
         entity.Origem = request.Origem;
         entity.TipoLocal = request.TipoLocal;
         entity.BlocoId = request.BlocoId;
@@ -219,11 +223,12 @@ public class OcorrenciaService : IOcorrenciaService
 
         var entity = await _db.Ocorrencias
             .Include(o => o.Midias)
-            .Include(o => o.Morador)!.ThenInclude(m => m!.Pessoa)
-            .Include(o => o.Morador)!.ThenInclude(m => m!.Unidade)
+            .Include(o => o.Morador)!.ThenInclude(m => m!.Usuario)
+            .Include(o => o.Morador)!.ThenInclude(m => m!.Unidades).ThenInclude(u => u.Unidade)
             .Include(o => o.Bloco)
             .Include(o => o.Unidade)
-            .Include(o => o.RegistradoPor).ThenInclude(u => u.Pessoa)
+            .Include(o => o.RegistradoPor).ThenInclude(u => u.Sindico)
+            .Include(o => o.RegistradoPor).ThenInclude(u => u.Funcionario)
             .FirstOrDefaultAsync(o => o.Id == id && o.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Ocorrência não encontrada");
 
@@ -336,14 +341,14 @@ public class OcorrenciaService : IOcorrenciaService
         await _db.Entry(entity).Reference(o => o.Morador).LoadAsync();
         if (entity.Morador != null)
         {
-            await _db.Entry(entity.Morador).Reference(m => m.Pessoa).LoadAsync();
-            await _db.Entry(entity.Morador).Reference(m => m.Unidade).LoadAsync();
+            await _db.Entry(entity.Morador).Reference(m => m.Usuario).LoadAsync();
+            await _db.Entry(entity.Morador).Collection(m => m.Unidades).Query().Include(u => u.Unidade).LoadAsync();
         }
 
         await _db.Entry(entity).Reference(o => o.Bloco).LoadAsync();
         await _db.Entry(entity).Reference(o => o.Unidade).LoadAsync();
         await _db.Entry(entity).Reference(o => o.RegistradoPor).LoadAsync();
-        await _db.Entry(entity.RegistradoPor).Reference(u => u.Pessoa).LoadAsync();
+        await UsuarioPapeis.CarregarAsync(_db, entity.RegistradoPor);
     }
 
     private async Task ValidarCondominioAsync(Guid condominioId, Guid sindicoId)
@@ -353,17 +358,25 @@ public class OcorrenciaService : IOcorrenciaService
             throw new KeyNotFoundException("Condomínio não encontrado");
     }
 
-    private async Task ValidarReferenciasAsync(
-        Guid condominioId, Guid? moradorId, Guid? blocoId, Guid? unidadeId)
+    private async Task<Guid?> ResolverMoradorDaOcupacaoAsync(Guid condominioId, Guid? ocupacaoId)
     {
-        if (moradorId.HasValue)
-        {
-            var ok = await _db.Moradores.AnyAsync(m =>
-                m.Id == moradorId && m.Unidade.CondominioId == condominioId);
-            if (!ok)
-                throw new KeyNotFoundException("Morador inválido para este condomínio");
-        }
+        if (!ocupacaoId.HasValue)
+            return null;
 
+        var moradorId = await _db.MoradorUnidades
+            .Where(o => o.Id == ocupacaoId && o.Unidade.CondominioId == condominioId)
+            .Select(o => (Guid?)o.MoradorId)
+            .FirstOrDefaultAsync();
+
+        if (moradorId is null)
+            throw new KeyNotFoundException("Morador inválido para este condomínio");
+
+        return moradorId;
+    }
+
+    private async Task ValidarReferenciasAsync(
+        Guid condominioId, Guid? blocoId, Guid? unidadeId)
+    {
         if (blocoId.HasValue)
         {
             var ok = await _db.Blocos.AnyAsync(b => b.Id == blocoId && b.CondominioId == condominioId);

@@ -10,5 +10,5 @@ public class Unidade
 
     public Bloco Bloco { get; set; } = null!;
     public Condominio Condominio { get; set; } = null!;
-    public ICollection<Morador> Moradores { get; set; } = [];
+    public ICollection<MoradorUnidade> MoradorUnidades { get; set; } = [];
 }

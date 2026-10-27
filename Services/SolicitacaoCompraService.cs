@@ -151,15 +151,13 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
 
     public async Task<SolicitacaoCompraDetalheResponse> AprovarAsync(Guid id, Guid userId)
     {
-        var aprovador = await _db.Usuarios.AsNoTracking()
-            .Where(u => u.Id == userId)
-            .Select(u => u.Cargo)
-            .FirstOrDefaultAsync();
+        var ehSindico = await _db.Sindicos.AsNoTracking()
+            .AnyAsync(s => s.UsuarioId == userId);
 
-        if (aprovador != CargoConstants.Sindico)
+        if (!ehSindico)
             throw new UnauthorizedAccessException("Apenas o síndico pode aprovar solicitações de compra");
 
-        var sindicoId = userId;
+        var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
 
         var entity = await ComReferencias(_db.SolicitacoesCompra)
             .FirstOrDefaultAsync(s => s.Id == id && s.Condominio.SindicoId == sindicoId)
@@ -186,7 +184,7 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
         await _db.SaveChangesAsync();
         await _db.Entry(entity).Reference(s => s.AprovadoPor).LoadAsync();
         if (entity.AprovadoPor is not null)
-            await _db.Entry(entity.AprovadoPor).Reference(u => u.Pessoa).LoadAsync();
+            await UsuarioPapeis.CarregarAsync(_db, entity.AprovadoPor);
 
         return _mapper.Map<SolicitacaoCompraDetalheResponse>(entity);
     }
@@ -375,15 +373,17 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
     private static IQueryable<SolicitacaoCompra> ComReferencias(IQueryable<SolicitacaoCompra> query) =>
         query
             .Include(s => s.Itens)
-            .Include(s => s.SolicitadoPor).ThenInclude(u => u.Pessoa)
-            .Include(s => s.AprovadoPor!).ThenInclude(u => u.Pessoa)
+            .Include(s => s.SolicitadoPor).ThenInclude(u => u.Sindico)
+            .Include(s => s.SolicitadoPor).ThenInclude(u => u.Funcionario)
+            .Include(s => s.AprovadoPor!).ThenInclude(u => u.Sindico)
+            .Include(s => s.AprovadoPor!).ThenInclude(u => u.Funcionario)
             .Include(s => s.Cotacoes).ThenInclude(c => c.Itens)
             .Include(s => s.Cotacoes).ThenInclude(c => c.Fornecedor);
 
     private async Task CarregarAutorAsync(SolicitacaoCompra entity)
     {
         await _db.Entry(entity).Reference(s => s.SolicitadoPor).LoadAsync();
-        await _db.Entry(entity.SolicitadoPor).Reference(u => u.Pessoa).LoadAsync();
+        await UsuarioPapeis.CarregarAsync(_db, entity.SolicitadoPor);
     }
 
     private async Task SincronizarItensAsync(SolicitacaoCompra entity, List<SolicitacaoCompraItemRequest> pedidos)
