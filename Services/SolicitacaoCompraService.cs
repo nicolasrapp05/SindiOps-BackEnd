@@ -56,6 +56,9 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
         if (!string.IsNullOrWhiteSpace(q.Categoria))
             query = query.Where(s => s.Itens.Any(i => i.Categoria == q.Categoria));
 
+        if (!string.IsNullOrWhiteSpace(q.SituacaoCotacao))
+            query = FiltrarSituacaoCotacao(query, q.SituacaoCotacao);
+
         var totalCount = await query.CountAsync();
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);
@@ -369,6 +372,26 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
         _db.Cotacoes.Remove(cotacao);
         await _db.SaveChangesAsync();
     }
+
+    private static IQueryable<SolicitacaoCompra> FiltrarSituacaoCotacao(
+        IQueryable<SolicitacaoCompra> query, string situacao) =>
+        situacao switch
+        {
+            SituacaoCotacao.SemCotacoes => query.Where(s =>
+                s.Status == SolicitacaoStatus.Nova && !s.Cotacoes.Any()),
+            SituacaoCotacao.SemVencedora => query.Where(s =>
+                s.Status == SolicitacaoStatus.Nova &&
+                s.Cotacoes.Any() &&
+                !s.Cotacoes.Any(c => c.Selecionada)),
+            SituacaoCotacao.ProntaParaAprovar => query.Where(s =>
+                s.Status == SolicitacaoStatus.Nova && s.Cotacoes.Any(c => c.Selecionada)),
+            _ => throw new ValidationException(new[]
+            {
+                new ValidationFailure(
+                    "situacaoCotacao",
+                    $"Situação de cotação inválida. Valores aceitos: {string.Join(", ", SituacaoCotacao.Todas)}")
+            }),
+        };
 
     private static IQueryable<SolicitacaoCompra> ComReferencias(IQueryable<SolicitacaoCompra> query) =>
         query
