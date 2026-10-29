@@ -14,17 +14,20 @@ namespace SindiOps.API.Controllers;
 public class RelatoriosController : ControllerBase
 {
     private readonly IRelatorioService _service;
+    private readonly ICurrentUserService _currentUser;
 
-    public RelatoriosController(IRelatorioService service)
+    public RelatoriosController(IRelatorioService service, ICurrentUserService currentUser)
     {
         _service = service;
+        _currentUser = currentUser;
     }
 
     [HttpPost("gerar")]
     public async Task<IActionResult> Gerar([FromBody] GerarRelatorioRequest request)
     {
         var userId = User.GetUserId();
-        var (conteudo, contentType, fileName) = await _service.GerarRelatorioAsync(request, userId);
+        var cargo = await _currentUser.GetCargoAsync();
+        var (conteudo, contentType, fileName) = await _service.GerarRelatorioAsync(request, userId, cargo);
         return File(conteudo, contentType, fileName);
     }
 }

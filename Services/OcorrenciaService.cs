@@ -74,13 +74,13 @@ public class OcorrenciaService : IOcorrenciaService
 
         if (q.DataInicio.HasValue)
         {
-            var start = q.DataInicio.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            var start = BrazilTime.StartOfDayUtc(q.DataInicio.Value);
             query = query.Where(o => o.OcorreuEm >= start);
         }
 
         if (q.DataFim.HasValue)
         {
-            var end = q.DataFim.Value.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+            var end = BrazilTime.EndOfDayUtc(q.DataFim.Value);
             query = query.Where(o => o.OcorreuEm <= end);
         }
 
@@ -408,13 +408,16 @@ public class OcorrenciaService : IOcorrenciaService
         };
     }
 
-    /// <summary>PostgreSQL <c>timestamptz</c> exige <see cref="DateTimeKind.Utc"/>; JSON costuma devolver <see cref="DateTimeKind.Unspecified"/>.</summary>
+    /// <summary>
+    /// PostgreSQL <c>timestamptz</c> exige <see cref="DateTimeKind.Utc"/>.
+    /// JSON sem fuso chega como <see cref="DateTimeKind.Unspecified"/> e é o relógio de Brasília.
+    /// </summary>
     private static DateTime ToPostgreTimestampUtc(DateTime value)
     {
         if (value.Kind == DateTimeKind.Utc)
             return value;
         if (value.Kind == DateTimeKind.Local)
             return value.ToUniversalTime();
-        return DateTime.SpecifyKind(value, DateTimeKind.Utc);
+        return BrazilTime.WallClockToUtc(value);
     }
 }

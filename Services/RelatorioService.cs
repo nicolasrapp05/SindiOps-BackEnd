@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using SindiOps.API.Constants;
 using SindiOps.API.DTOs.Requests;
+using SindiOps.API.Helpers;
 using SindiOps.API.Infrastructure.Data;
 using SindiOps.API.Infrastructure.Reports;
 using SindiOps.API.Services.Interfaces;
@@ -21,7 +22,8 @@ public class RelatorioService : IRelatorioService
 
     public async Task<(byte[] Conteudo, string ContentType, string FileName)> GerarRelatorioAsync(
         GerarRelatorioRequest request,
-        Guid userId)
+        Guid userId,
+        string cargo)
     {
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
 
@@ -35,7 +37,7 @@ public class RelatorioService : IRelatorioService
             RelatorioTipo.Ocorrencias => await BuildOcorrenciasAsync(request),
             RelatorioTipo.MapaCotacoes => await BuildMapaCotacoesAsync(request),
             RelatorioTipo.ListaCompras => await BuildListaComprasAsync(request),
-            RelatorioTipo.AgendaPrazos => await BuildAgendaPrazosAsync(request),
+            RelatorioTipo.AgendaPrazos => await BuildAgendaPrazosAsync(request, cargo),
             RelatorioTipo.AgendaMandatos => await BuildAgendaMandatosAsync(request),
             RelatorioTipo.Manutencoes => await BuildManutencoesAsync(request),
             _ => throw new ArgumentOutOfRangeException(nameof(request.Tipo), request.Tipo, "Tipo de relatório inválido.")
@@ -83,7 +85,7 @@ public class RelatorioService : IRelatorioService
         var colunas = new[] { "Ocorreu em", "Tipo", "Status", "Origem", "Descrição" };
         var linhas = list.Select(o => (IReadOnlyList<string>)new[]
         {
-            o.OcorreuEm.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) + " UTC",
+            BrazilTime.ToBrazil(o.OcorreuEm).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture),
             o.TipoOcorrencia,
             o.Status,
             o.Origem,
@@ -183,47 +185,90 @@ public class RelatorioService : IRelatorioService
         };
     }
 
-    private async Task<ReportDocumentModel> BuildAgendaPrazosAsync(GerarRelatorioRequest request)
+    private async Task<ReportDocumentModel> BuildAgendaPrazosAsync(GerarRelatorioRequest request, string cargo)
     {
         var colunas = new[] { "Tipo", "Descrição", "Data vencimento", "Status", "Referência (Id)" };
-        var linhas = new List<IReadOnlyList<string>>();
+        var itens = new List<(DateOnly Data, string Tipo, string Status, string[] Linha)>();
+        var tipoFiltro = GetFiltro(request.Filtros, "tipo");
+        var statusFiltro = GetFiltro(request.Filtros, "status");
 
-        var manutencoes = await _db.ManutencoesObrigatorias.AsNoTracking()
-            .Where(m => m.CondominioId == request.CondominioId &&
-                        (m.Status == ManutencaoStatus.Upcoming || m.Status == ManutencaoStatus.Overdue))
-            .OrderBy(m => m.DataVencimento)
-            .ToListAsync();
-
-        foreach (var m in manutencoes)
+        if (IncluiTipoAgenda(tipoFiltro, "manutencao_obrigatoria") &&
+            CargoPermissions.CanSeeManutencaoAgenda(cargo))
         {
-            var desc = m.Tipo + (string.IsNullOrEmpty(m.Observacoes) ? "" : " — " + m.Observacoes);
-            linhas.Add(new[]
+            var manutencoes = await _db.ManutencoesObrigatorias.AsNoTracking()
+                .Where(m => m.CondominioId == request.CondominioId &&
+                            (m.Status == ManutencaoStatus.Upcoming || m.Status == ManutencaoStatus.Overdue))
+                .ToListAsync();
+
+            foreach (var m in manutencoes)
             {
-                "Manutenção obrigatória",
-                desc,
-                m.DataVencimento.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
-                m.Status,
-                m.Id.ToString()
-            });
+                var desc = m.Tipo + (string.IsNullOrEmpty(m.Observacoes) ? "" : " — " + m.Observacoes);
+                itens.Add((m.DataVencimento, "manutencao_obrigatoria", m.Status, new[]
+                {
+                    "Manutenção obrigatória",
+                    desc,
+                    m.DataVencimento.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+                    m.Status,
+                    m.Id.ToString()
+                }));
+            }
         }
 
-        var contratos = await _db.Contratos.AsNoTracking()
-            .Include(c => c.Fornecedor)
-            .Where(c => c.CondominioId == request.CondominioId && c.Status == ContratoStatus.Expiring && c.DataFim.HasValue)
-            .OrderBy(c => c.DataFim)
-            .ToListAsync();
-
-        foreach (var c in contratos)
+        if (IncluiTipoAgenda(tipoFiltro, "contrato") && CargoPermissions.CanSeeContratoAgenda(cargo))
         {
-            linhas.Add(new[]
+            var contratos = await _db.Contratos.AsNoTracking()
+                .Include(c => c.Fornecedor)
+                .Where(c => c.CondominioId == request.CondominioId &&
+                            c.Status == ContratoStatus.Expiring &&
+                            c.DataFim.HasValue)
+                .ToListAsync();
+
+            foreach (var c in contratos)
             {
-                "Contrato",
-                $"{c.TipoServico} — {c.Fornecedor.Nome}",
-                c.DataFim!.Value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
-                c.Status,
-                c.Id.ToString()
-            });
+                itens.Add((c.DataFim!.Value, "contrato", c.Status, new[]
+                {
+                    "Contrato",
+                    $"{c.TipoServico} — {c.Fornecedor.Nome}",
+                    c.DataFim.Value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+                    c.Status,
+                    c.Id.ToString()
+                }));
+            }
         }
+
+        if (IncluiTipoAgenda(tipoFiltro, "mandato") && CargoPermissions.CanSeeMandatoAgenda(cargo))
+        {
+            var hoje = BrazilTime.Today;
+            var limite = hoje.AddDays(MandatoAgenda.WindowDays);
+            var condominio = await _db.Condominios.AsNoTracking()
+                .Where(c => c.Id == request.CondominioId &&
+                            c.VencimentoMandato.HasValue &&
+                            c.VencimentoMandato.Value <= limite)
+                .Select(c => new { c.Nome, Vencimento = c.VencimentoMandato!.Value, c.Id })
+                .FirstOrDefaultAsync();
+
+            if (condominio is not null)
+            {
+                var status = MandatoAgenda.Status(condominio.Vencimento, hoje);
+                if (status is not null)
+                {
+                    itens.Add((condominio.Vencimento, "mandato", status, new[]
+                    {
+                        "Mandato",
+                        "Vencimento do mandato do síndico",
+                        condominio.Vencimento.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+                        status,
+                        condominio.Id.ToString()
+                    }));
+                }
+            }
+        }
+
+        var linhas = itens
+            .Where(i => string.IsNullOrWhiteSpace(statusFiltro) || i.Status == statusFiltro)
+            .OrderBy(i => i.Data)
+            .Select(i => (IReadOnlyList<string>)i.Linha)
+            .ToList();
 
         return new ReportDocumentModel
         {
@@ -233,6 +278,9 @@ public class RelatorioService : IRelatorioService
             Linhas = GarantirLinhas(colunas.Length, linhas)
         };
     }
+
+    private static bool IncluiTipoAgenda(string? tipoFiltro, string tipo) =>
+        string.IsNullOrWhiteSpace(tipoFiltro) || tipoFiltro == "all" || tipoFiltro == tipo;
 
     private async Task<ReportDocumentModel> BuildAgendaMandatosAsync(GerarRelatorioRequest request)
     {
@@ -303,10 +351,10 @@ public class RelatorioService : IRelatorioService
         DateTime? fim = null;
 
         if (filtros.TryGetValue("dataInicio", out var sIni) && TryParseDateOnly(sIni, out var dIni))
-            ini = dIni.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            ini = BrazilTime.StartOfDayUtc(dIni);
 
         if (filtros.TryGetValue("dataFim", out var sFim) && TryParseDateOnly(sFim, out var dFim))
-            fim = dFim.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+            fim = BrazilTime.EndOfDayUtc(dFim);
 
         return (ini, fim);
     }
@@ -326,10 +374,10 @@ public class RelatorioService : IRelatorioService
         if (!ini.HasValue && !fim.HasValue)
             return null;
         var a = ini.HasValue
-            ? DateOnly.FromDateTime(ini.Value).ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)
+            ? DateOnly.FromDateTime(BrazilTime.ToBrazil(ini.Value)).ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)
             : "…";
         var b = fim.HasValue
-            ? DateOnly.FromDateTime(fim.Value).ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)
+            ? DateOnly.FromDateTime(BrazilTime.ToBrazil(fim.Value)).ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)
             : "…";
         return $"Período: {a} a {b}";
     }

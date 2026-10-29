@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SindiOps.API.Constants;
 using SindiOps.API.DTOs.Responses;
+using SindiOps.API.Helpers;
 using SindiOps.API.Infrastructure.Data;
 using SindiOps.API.Services.Interfaces;
 
@@ -141,13 +142,12 @@ public class DashboardService : IDashboardService
 
         if (CargoPermissions.CanSeeMandatoAgenda(cargo))
         {
-            var hoje = DateOnly.FromDateTime(DateTime.UtcNow);
-            var limiteMandato = hoje.AddDays(60);
+            var hoje = BrazilTime.Today;
+            var limiteMandato = hoje.AddDays(MandatoAgenda.WindowDays);
 
             var condominiosMandatoQuery = _db.Condominios.AsNoTracking()
                 .Where(c => c.SindicoId == sindicoId &&
                             c.VencimentoMandato.HasValue &&
-                            c.VencimentoMandato.Value >= hoje &&
                             c.VencimentoMandato.Value <= limiteMandato &&
                             condominioIds.Contains(c.Id));
 
@@ -155,19 +155,31 @@ public class DashboardService : IDashboardService
                 condominiosMandatoQuery = condominiosMandatoQuery.Where(c => c.Id == condominioIdFiltro.Value);
 
             var mandatos = await condominiosMandatoQuery
-                .Select(c => new AgendaItem
+                .Select(c => new
                 {
-                    Tipo = "mandato",
-                    Descricao = "Vencimento do mandato do síndico",
-                    DataVencimento = c.VencimentoMandato!.Value,
-                    Status = "proximo",
-                    CondominioId = c.Id,
-                    CondominioNome = c.Nome,
-                    ReferenciaId = c.Id
+                    c.Id,
+                    c.Nome,
+                    Vencimento = c.VencimentoMandato!.Value
                 })
                 .ToListAsync();
 
-            agenda.AddRange(mandatos);
+            foreach (var c in mandatos)
+            {
+                var status = MandatoAgenda.Status(c.Vencimento, hoje);
+                if (status is null)
+                    continue;
+
+                agenda.Add(new AgendaItem
+                {
+                    Tipo = "mandato",
+                    Descricao = "Vencimento do mandato do síndico",
+                    DataVencimento = c.Vencimento,
+                    Status = status,
+                    CondominioId = c.Id,
+                    CondominioNome = c.Nome,
+                    ReferenciaId = c.Id
+                });
+            }
         }
 
         agenda.Sort((a, b) => a.DataVencimento.CompareTo(b.DataVencimento));
