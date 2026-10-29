@@ -31,12 +31,14 @@ public class FornecedorService : IFornecedorService
 
         if (!string.IsNullOrWhiteSpace(q.Search))
         {
-            var search = q.Search.ToLower();
+            var search = q.Search.Trim().ToLower();
             var searchDigitos = Regex.Replace(search, @"\D", "");
+            var temDigitos = searchDigitos.Length > 0;
 
             query = query.Where(f =>
                 f.Nome.ToLower().Contains(search) ||
-                (f.Cnpj != null && f.Cnpj.Contains(searchDigitos)));
+                (f.Email != null && f.Email.ToLower().Contains(search)) ||
+                (temDigitos && f.Cnpj != null && f.Cnpj.Contains(searchDigitos)));
         }
 
         var totalCount = await query.CountAsync();

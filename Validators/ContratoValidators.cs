@@ -18,6 +18,10 @@ public class CreateContratoRequestValidator : AbstractValidator<CreateContratoRe
             .NotEmpty().WithMessage("TipoServico é obrigatório")
             .MaximumLength(200);
 
+        RuleFor(x => x.ValorMensal)
+            .GreaterThan(0).WithMessage("Valor mensal deve ser maior que zero")
+            .When(x => x.ValorMensal.HasValue);
+
         RuleFor(x => x)
             .Must(x => x.DataInicio == null || x.DataFim == null || x.DataFim >= x.DataInicio)
             .WithMessage("DataFim deve ser igual ou posterior a DataInicio");

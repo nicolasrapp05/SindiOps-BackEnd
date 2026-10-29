@@ -32,11 +32,6 @@ builder.Services.AddAutoMapper(cfg => cfg.AddMaps(Assembly.GetExecutingAssembly(
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
-builder.Services.Configure<ApiBehaviorOptions>(options =>
-{
-    options.InvalidModelStateResponseFactory = ValidationResponseFactory.Create;
-});
-
 // ── JWT Authentication (valida token emitido pelo Supabase Auth) ─────────────
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -132,6 +127,10 @@ builder.Services.AddHostedService<ContratoStatusJob>();
 
 // ── Controllers ──────────────────────────────────────────────────────────────
 builder.Services.AddControllers();
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = ValidationResponseFactory.Create;
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 var app = builder.Build();

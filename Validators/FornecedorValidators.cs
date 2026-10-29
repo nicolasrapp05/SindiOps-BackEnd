@@ -1,6 +1,6 @@
-using System.Text.RegularExpressions;
 using FluentValidation;
 using SindiOps.API.DTOs.Requests;
+using SindiOps.API.Helpers;
 
 namespace SindiOps.API.Validators;
 
@@ -13,16 +13,14 @@ public class CreateFornecedorRequestValidator : AbstractValidator<CreateForneced
             .MaximumLength(200).WithMessage("Nome deve ter no máximo 200 caracteres");
 
         RuleFor(x => x.Cnpj)
-            .Must(cnpj => string.IsNullOrEmpty(cnpj) || CnpjValido(cnpj))
-            .WithMessage("CNPJ inválido — informe 14 dígitos numéricos");
+            .Must(CnpjValidador.EhValido)
+            .WithMessage("CNPJ inválido");
+
+        RuleFor(x => x.Email)
+            .EmailAddress().WithMessage("Email inválido")
+            .When(x => !string.IsNullOrWhiteSpace(x.Email));
 
         RuleForEach(x => x.Servicos).SetValidator(new CreateServicoRequestValidator());
-    }
-
-    private static bool CnpjValido(string cnpj)
-    {
-        var soDigitos = Regex.Replace(cnpj, @"\D", "");
-        return soDigitos.Length == 14;
     }
 }
 

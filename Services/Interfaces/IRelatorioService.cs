@@ -6,5 +6,6 @@ public interface IRelatorioService
 {
     Task<(byte[] Conteudo, string ContentType, string FileName)> GerarRelatorioAsync(
         GerarRelatorioRequest request,
-        Guid userId);
+        Guid userId,
+        string cargo);
 }

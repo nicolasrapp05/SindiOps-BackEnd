@@ -48,7 +48,10 @@ public class FuncionariosController : ControllerBase
     {
         var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.ConvidarAsync(request, sindicoId);
-        return StatusCode(201, ApiResponse<object>.Ok(data, "Funcionário convidado com sucesso"));
+        var message = data.ConviteEnviado == false
+            ? "Funcionário cadastrado, mas o email de convite não foi enviado."
+            : "Convite enviado com sucesso";
+        return StatusCode(201, ApiResponse<object>.Ok(data, message));
     }
 
     // POST api/v1/funcionarios/{id}/reenviar-convite
