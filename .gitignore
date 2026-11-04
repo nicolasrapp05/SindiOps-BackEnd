@@ -4,6 +4,8 @@
 [Oo]ut/
 [Ll]og/
 [Ll]ogs/
+*.log
+*.binlog
 artifacts/
 
 # Visual Studio / MSBuild
@@ -26,8 +28,15 @@ project.fragment.lock.json
 !.vscode/tasks.json
 !.vscode/launch.json
 
-# Overrides locais (credenciais / máquina) — o template fica em appsettings.json / appsettings.Development.json
-appsettings.*.local.json
+# Segredos
+appsettings.*.json
+!appsettings.Development.json
+!appsettings.example.json
+secrets.json
+
+.env
+.env.*
+!.env.example
 
 # Testes / cobertura
 [Tt]est[Rr]esult*/
@@ -37,12 +46,18 @@ coverage*.xml
 *.coverage
 *.coveragexml
 
-# Publicação
+# Publicação (perfil pode levar senha de deploy)
 publish/
-*.Publish.xml
+*.[Pp]ublish.xml
+*.azurePubxml
+*.pubxml
+*.publishproj
+*.publishsettings
+*.pfx
 
 # NuGet em cache no projecto
 *.nupkg
+*.snupkg
 packages/
 
 # EF Core bundles temporários
@@ -51,3 +66,4 @@ packages/
 # OS
 .DS_Store
 Thumbs.db
+[Dd]esktop.ini
