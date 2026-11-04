@@ -61,8 +61,20 @@ public class ManutencaoObrigatoriaService : IManutencaoObrigatoriaService
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);
 
-        var items = await query
-            .OrderBy(m => m.DataVencimento)
+        var sort = ListSort.Key(q.Sort, "tipo", "condominio", "vencimento", "ultimaRealizacao", "status");
+        var desc = ListSort.Descending(q.Dir);
+        var ordered = sort switch
+        {
+            "tipo" => ListSort.By(query, m => m.Tipo, desc),
+            "condominio" => ListSort.By(query, m => m.Condominio.Nome, desc),
+            "vencimento" => ListSort.By(query, m => m.DataVencimento, desc),
+            "ultimaRealizacao" => ListSort.By(query, m => m.UltimaRealizacao, desc),
+            "status" => ListSort.By(query, m => m.Status, desc),
+            _ => ListSort.By(query, m => m.DataVencimento, false),
+        };
+
+        var items = await ordered
+            .ThenBy(m => m.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();

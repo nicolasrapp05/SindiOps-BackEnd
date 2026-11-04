@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using AutoMapper;
 using FluentValidation;
 using FluentValidation.Results;
@@ -74,8 +75,32 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);
 
-        var items = await ComReferencias(query)
-            .OrderByDescending(s => s.CriadoEm)
+        var sort = ListSort.Key(
+            q.Sort,
+            "situacao",
+            "orcamento",
+            "tipo",
+            "local",
+            "propostas",
+            "responsavel",
+            "fornecedor",
+            "status",
+            "dataConclusao");
+        var desc = ListSort.Descending(q.Dir);
+        var ordered = sort switch
+        {
+            "situacao" or "orcamento" => ListSort.By(query, SituacaoOrdem, desc),
+            "tipo" => ListSort.By(query, s => s.TipoManutencao, desc),
+            "local" => ListSort.By(query, s => s.Local, desc),
+            "propostas" => ListSort.By(query, s => s.Orcamentos.Count, desc),
+            "responsavel" => ListSort.By(query, s => s.Responsavel, desc),
+            "fornecedor" => ListSort.By(query, s => s.Fornecedor != null ? s.Fornecedor.Nome : "", desc),
+            "status" => ListSort.By(query, s => s.Status, desc),
+            "dataConclusao" => ListSort.By(query, s => s.DataConclusao, desc),
+            _ => ListSort.By(query, s => s.CriadoEm, true),
+        };
+
+        var items = await ComReferencias(ordered.ThenBy(s => s.Id))
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
@@ -219,6 +244,25 @@ public class SolicitacaoManutencaoService : ISolicitacaoManutencaoService
 
         return _mapper.Map<SolicitacaoManutencaoResponse>(entity);
     }
+
+    private static readonly Expression<Func<SolicitacaoManutencao, string>> SituacaoOrdem = s =>
+        (s.Status == SolicitacaoStatus.Finalizada || s.Status == SolicitacaoStatus.Cancelada) && s.Orcamentos.Any()
+            ? SituacaoOrcamento.Encerrado
+            : s.OrcamentoAprovadoPorId != null &&
+              s.Status != SolicitacaoStatus.Finalizada &&
+              s.Status != SolicitacaoStatus.Cancelada
+                ? SituacaoOrcamento.Aprovado
+                : s.OrcamentoAprovadoPorId == null &&
+                  s.Status != SolicitacaoStatus.Finalizada &&
+                  s.Status != SolicitacaoStatus.Cancelada &&
+                  s.Orcamentos.Any(o => o.Selecionada)
+                    ? SituacaoOrcamento.PropostaSelecionada
+                    : s.OrcamentoAprovadoPorId == null &&
+                      s.Status != SolicitacaoStatus.Finalizada &&
+                      s.Status != SolicitacaoStatus.Cancelada &&
+                      s.Orcamentos.Any()
+                        ? SituacaoOrcamento.AguardandoProposta
+                        : SituacaoOrcamento.SemOrcamento;
 
     private static IQueryable<SolicitacaoManutencao> ComReferencias(IQueryable<SolicitacaoManutencao> query) =>
         query

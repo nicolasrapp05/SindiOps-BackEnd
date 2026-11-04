@@ -52,8 +52,21 @@ public class ContratoService : IContratoService
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);
 
-        var contratos = await query
-            .OrderByDescending(c => c.CriadoEm)
+        var sort = ListSort.Key(q.Sort, "tipo", "fornecedor", "inicio", "termino", "valor", "status");
+        var desc = ListSort.Descending(q.Dir);
+        var ordered = sort switch
+        {
+            "tipo" => ListSort.By(query, c => c.TipoServico, desc),
+            "fornecedor" => ListSort.By(query, c => c.Fornecedor.Nome, desc),
+            "inicio" => ListSort.By(query, c => c.DataInicio, desc),
+            "termino" => ListSort.By(query, c => c.DataFim, desc),
+            "valor" => ListSort.By(query, c => c.ValorMensal, desc),
+            "status" => ListSort.By(query, c => c.Status, desc),
+            _ => ListSort.By(query, c => c.CriadoEm, true),
+        };
+
+        var contratos = await ordered
+            .ThenBy(c => c.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();

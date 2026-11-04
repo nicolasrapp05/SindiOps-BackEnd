@@ -22,15 +22,13 @@ public class FuncionariosController : ControllerBase
         _currentUser = currentUser;
     }
 
-    // GET api/v1/funcionarios?cargo=&ativo=
+    // GET api/v1/funcionarios?cargo=&ativo=&page=&pageSize=&sort=&dir=
     [HttpGet]
-    public async Task<IActionResult> GetAll(
-        [FromQuery] string? cargo,
-        [FromQuery] bool? ativo)
+    public async Task<IActionResult> GetAll([FromQuery] FuncionarioQueryParams queryParams)
     {
         var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
-        var data = await _service.GetAllAsync(sindicoId, cargo, ativo);
-        return Ok(ApiResponse<object>.Ok(data));
+        var data = await _service.GetAllAsync(sindicoId, queryParams);
+        return Ok(data);
     }
 
     // GET api/v1/funcionarios/{id}

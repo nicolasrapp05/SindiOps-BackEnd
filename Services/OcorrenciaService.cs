@@ -88,8 +88,20 @@ public class OcorrenciaService : IOcorrenciaService
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);
 
-        var items = await query
-            .OrderByDescending(o => o.OcorreuEm)
+        var sort = ListSort.Key(q.Sort, "status", "tipo", "origem", "local", "data");
+        var desc = ListSort.Descending(q.Dir);
+        var ordered = sort switch
+        {
+            "status" => ListSort.By(query, o => o.Status, desc),
+            "tipo" => ListSort.By(query, o => o.TipoOcorrencia, desc),
+            "origem" => ListSort.By(query, o => o.Origem, desc),
+            "local" => ListSort.By(query, o => o.TipoLocal, desc),
+            "data" => ListSort.By(query, o => o.OcorreuEm, desc),
+            _ => ListSort.By(query, o => o.OcorreuEm, true),
+        };
+
+        var items = await ordered
+            .ThenBy(o => o.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();

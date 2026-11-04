@@ -40,7 +40,7 @@ public class FuncionarioService : IFuncionarioService
         _logger = logger;
     }
 
-    public async Task<List<FuncionarioResponse>> GetAllAsync(Guid sindicoId, string? cargo, bool? ativo)
+    public async Task<PaginatedResponse<FuncionarioResponse>> GetAllAsync(Guid sindicoId, FuncionarioQueryParams q)
     {
         var query = _db.Funcionarios
             .Include(f => f.Usuario)
@@ -48,17 +48,39 @@ public class FuncionarioService : IFuncionarioService
             .ThenInclude(fc => fc.Condominio)
             .Where(f => f.SindicoId == sindicoId);
 
-        if (!string.IsNullOrWhiteSpace(cargo))
-            query = query.Where(f => f.Cargo == cargo);
+        if (!string.IsNullOrWhiteSpace(q.Cargo))
+            query = query.Where(f => f.Cargo == q.Cargo);
 
-        if (ativo.HasValue)
-            query = query.Where(f => f.Usuario.Ativo == ativo.Value);
+        if (q.Ativo.HasValue)
+            query = query.Where(f => f.Usuario.Ativo == q.Ativo.Value);
+
+        var totalCount = await query.CountAsync();
+        var pageSize = Math.Clamp(q.PageSize, 1, 100);
+        var page = Math.Max(q.Page, 1);
+        var sort = ListSort.Key(q.Sort, "nome", "cargo", "email", "criadoEm");
+        var desc = ListSort.Descending(q.Dir);
+        var ordered = sort switch
+        {
+            "cargo" => ListSort.By(query, f => f.Cargo, desc),
+            "email" => ListSort.By(query, f => f.Usuario.Email, desc),
+            "criadoEm" => ListSort.By(query, f => f.CriadoEm, desc),
+            "nome" => ListSort.By(query, f => f.Usuario.Nome, desc),
+            _ => ListSort.By(query, f => f.Usuario.Nome, false),
+        };
 
         var responses = _mapper.Map<List<FuncionarioResponse>>(
-            await query.OrderBy(f => f.Usuario.Nome).ToListAsync());
+            await ordered.ThenBy(f => f.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync());
 
         await EnrichConviteStatusAsync(responses);
-        return responses;
+        return new PaginatedResponse<FuncionarioResponse>
+        {
+            Data = responses,
+            TotalCount = totalCount,
+            PageSize = pageSize
+        };
     }
 
     public async Task<FuncionarioResponse> GetByIdAsync(Guid id, Guid sindicoId)

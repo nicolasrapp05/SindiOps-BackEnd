@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SindiOps.API.Constants;
+using SindiOps.API.DTOs.Requests;
 using SindiOps.API.DTOs.Responses;
 using SindiOps.API.Helpers;
 using SindiOps.API.Infrastructure.Data;
@@ -16,9 +17,10 @@ public class DashboardService : IDashboardService
         _db = db;
     }
 
-    public async Task<DashboardResponse> GetDashboardAsync(Guid userId, string cargo, Guid? condominioId)
+    public async Task<DashboardResponse> GetDashboardAsync(Guid userId, string cargo, DashboardQueryParams q)
     {
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
+        var condominioId = q.CondominioId;
 
         IQueryable<Guid> idsQuery = _db.Condominios.AsNoTracking()
             .Where(c => c.SindicoId == sindicoId)
@@ -41,16 +43,22 @@ public class DashboardService : IDashboardService
         }
 
         var condominioIds = await idsQuery.ToListAsync();
+        var pageSize = Math.Clamp(q.PageSize, 1, 100);
         if (condominioIds.Count == 0)
-            return new DashboardResponse();
+            return new DashboardResponse { AgendaPageSize = pageSize };
 
         var alertas = await CarregarAlertasAsync(condominioIds, cargo);
         var agenda = await CarregarAgendaAsync(condominioIds, sindicoId, condominioId, cargo);
+        var filtrada = FiltrarAgenda(agenda, q.Tipo, q.Status);
+        var pagina = PaginarAgenda(filtrada, q, pageSize);
 
         return new DashboardResponse
         {
             Alertas = alertas,
-            Agenda = agenda
+            Agenda = pagina,
+            AgendaTotal = agenda.Count,
+            AgendaCount = filtrada.Count,
+            AgendaPageSize = pageSize
         };
     }
 
@@ -182,7 +190,50 @@ public class DashboardService : IDashboardService
             }
         }
 
-        agenda.Sort((a, b) => a.DataVencimento.CompareTo(b.DataVencimento));
         return agenda;
+    }
+
+    private static List<AgendaItem> FiltrarAgenda(List<AgendaItem> agenda, string? tipo, string? status)
+    {
+        IEnumerable<AgendaItem> itens = agenda;
+
+        var tipoKey = ListSort.Key(tipo, "manutencao_obrigatoria", "contrato", "mandato");
+        if (tipoKey is not null)
+            itens = itens.Where(item => item.Tipo == tipoKey);
+
+        var statusKey = ListSort.Key(status, "overdue", "upcoming", "expiring", "ok", "vencida", "proxima");
+        if (statusKey is not null)
+            itens = itens.Where(item => item.Status == statusKey);
+
+        return itens.ToList();
+    }
+
+    private static List<AgendaItem> PaginarAgenda(List<AgendaItem> agenda, DashboardQueryParams q, int pageSize)
+    {
+        var sort = ListSort.Key(q.Sort, "tipo", "condominio", "vencimento", "status");
+        var desc = ListSort.Descending(q.Dir);
+        var ordered = sort switch
+        {
+            "tipo" => desc
+                ? agenda.OrderByDescending(item => item.Tipo)
+                : agenda.OrderBy(item => item.Tipo),
+            "condominio" => desc
+                ? agenda.OrderByDescending(item => item.CondominioNome)
+                : agenda.OrderBy(item => item.CondominioNome),
+            "status" => desc
+                ? agenda.OrderByDescending(item => item.Status)
+                : agenda.OrderBy(item => item.Status),
+            "vencimento" => desc
+                ? agenda.OrderByDescending(item => item.DataVencimento)
+                : agenda.OrderBy(item => item.DataVencimento),
+            _ => agenda.OrderBy(item => item.DataVencimento),
+        };
+
+        var page = Math.Max(q.Page, 1);
+        return ordered
+            .ThenBy(item => item.ReferenciaId)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
     }
 }

@@ -45,8 +45,17 @@ public class FornecedorService : IFornecedorService
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);
 
-        var fornecedores = await query
-            .OrderBy(f => f.Nome)
+        var sort = ListSort.Key(q.Sort, "nome", "cnpj");
+        var desc = ListSort.Descending(q.Dir);
+        var ordered = sort switch
+        {
+            "cnpj" => ListSort.By(query, f => f.Cnpj, desc),
+            "nome" => ListSort.By(query, f => f.Nome, desc),
+            _ => ListSort.By(query, f => f.Nome, false),
+        };
+
+        var fornecedores = await ordered
+            .ThenBy(f => f.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();

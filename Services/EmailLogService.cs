@@ -82,8 +82,18 @@ public class EmailLogService : IEmailLogService
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);
 
-        var items = await query
-            .OrderByDescending(e => e.EnviadoEm)
+        var sort = ListSort.Key(q.Sort, "template", "enviadoEm", "status");
+        var desc = ListSort.Descending(q.Dir);
+        var ordered = sort switch
+        {
+            "template" => ListSort.By(query, e => e.Template != null ? e.Template.Tipo : "", desc),
+            "status" => ListSort.By(query, e => e.StatusEntrega, desc),
+            "enviadoEm" => ListSort.By(query, e => e.EnviadoEm, desc),
+            _ => ListSort.By(query, e => e.EnviadoEm, true),
+        };
+
+        var items = await ordered
+            .ThenBy(e => e.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();

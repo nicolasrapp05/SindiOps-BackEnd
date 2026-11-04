@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SindiOps.API.Authorization;
+using SindiOps.API.DTOs.Requests;
 using SindiOps.API.Helpers;
 using SindiOps.API.Services.Interfaces;
 
@@ -22,11 +23,11 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> Get([FromQuery] Guid? condominioId)
+    public async Task<IActionResult> Get([FromQuery] DashboardQueryParams queryParams)
     {
         var userId = User.GetUserId();
         var cargo = await _currentUser.GetCargoAsync();
-        var data = await _service.GetDashboardAsync(userId, cargo, condominioId);
+        var data = await _service.GetDashboardAsync(userId, cargo, queryParams);
         return Ok(ApiResponse<object>.Ok(data));
     }
 }

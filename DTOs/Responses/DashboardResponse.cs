@@ -4,6 +4,9 @@ public class DashboardResponse
 {
     public DashboardAlertas Alertas { get; set; } = new();
     public List<AgendaItem> Agenda { get; set; } = [];
+    public int AgendaTotal { get; set; }
+    public int AgendaCount { get; set; }
+    public int AgendaPageSize { get; set; }
 }
 
 public class DashboardAlertas

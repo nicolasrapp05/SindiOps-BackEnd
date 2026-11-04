@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SindiOps.API.DTOs.Requests;
 using SindiOps.API.DTOs.Responses;
 using SindiOps.API.Entities;
+using SindiOps.API.Helpers;
 using SindiOps.API.Infrastructure.Data;
 using SindiOps.API.Services.Interfaces;
 
@@ -19,17 +20,42 @@ public class EmailTemplateService : IEmailTemplateService
         _mapper = mapper;
     }
 
-    public async Task<List<EmailTemplateResponse>> GetAllAsync(Guid userId, EmailTemplateQueryParams? queryParams)
+    public async Task<PaginatedResponse<EmailTemplateResponse>> GetAllAsync(
+        Guid userId, EmailTemplateQueryParams queryParams)
     {
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
 
         var query = _db.EmailTemplates.AsNoTracking().Where(t => t.SindicoId == sindicoId);
 
-        if (!string.IsNullOrWhiteSpace(queryParams?.Tipo))
+        if (!string.IsNullOrWhiteSpace(queryParams.Tipo))
             query = query.Where(t => t.Tipo == queryParams.Tipo);
 
-        var list = await query.OrderBy(t => t.Nome).ToListAsync();
-        return _mapper.Map<List<EmailTemplateResponse>>(list);
+        var totalCount = await query.CountAsync();
+        var pageSize = Math.Clamp(queryParams.PageSize, 1, 100);
+        var page = Math.Max(queryParams.Page, 1);
+        var sort = ListSort.Key(queryParams.Sort, "nome", "tipo", "assunto", "atualizadoEm");
+        var desc = ListSort.Descending(queryParams.Dir);
+        var ordered = sort switch
+        {
+            "tipo" => ListSort.By(query, t => t.Tipo, desc),
+            "assunto" => ListSort.By(query, t => t.Assunto, desc),
+            "atualizadoEm" => ListSort.By(query, t => t.AtualizadoEm ?? t.CriadoEm, desc),
+            "nome" => ListSort.By(query, t => t.Nome, desc),
+            _ => ListSort.By(query, t => t.Nome, false),
+        };
+
+        var list = await ordered
+            .ThenBy(t => t.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PaginatedResponse<EmailTemplateResponse>
+        {
+            Data = _mapper.Map<List<EmailTemplateResponse>>(list),
+            TotalCount = totalCount,
+            PageSize = pageSize
+        };
     }
 
     public async Task<EmailTemplateDetalheResponse> GetByIdAsync(Guid id, Guid userId)

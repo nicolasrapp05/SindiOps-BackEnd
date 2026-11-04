@@ -51,8 +51,19 @@ public class MoradorService : IMoradorService
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);
 
-        var ocupacoes = await query
-            .OrderBy(o => o.Morador.Usuario.Nome)
+        var sort = ListSort.Key(q.Sort, "nome", "papel", "bloco", "unidade");
+        var desc = ListSort.Descending(q.Dir);
+        var ordered = sort switch
+        {
+            "papel" => ListSort.By(query, o => o.Papel, desc),
+            "bloco" => ListSort.By(query, o => o.Unidade.Bloco.Nome, desc),
+            "unidade" => ListSort.By(query, o => o.Unidade.Numero, desc),
+            "nome" => ListSort.By(query, o => o.Morador.Usuario.Nome, desc),
+            _ => ListSort.By(query, o => o.Morador.Usuario.Nome, false),
+        };
+
+        var ocupacoes = await ordered
+            .ThenBy(o => o.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();

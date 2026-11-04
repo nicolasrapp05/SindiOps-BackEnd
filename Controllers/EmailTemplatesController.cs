@@ -25,7 +25,7 @@ public class EmailTemplatesController : ControllerBase
     {
         var userId = User.GetUserId();
         var data = await _service.GetAllAsync(userId, queryParams);
-        return Ok(ApiResponse<object>.Ok(data));
+        return Ok(data);
     }
 
     [HttpGet("{id:guid}")]

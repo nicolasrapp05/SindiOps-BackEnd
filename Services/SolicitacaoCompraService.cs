@@ -63,8 +63,21 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);
 
-        var items = await query
-            .OrderByDescending(s => s.CriadoEm)
+        var sort = ListSort.Key(q.Sort, "status", "itens", "solicitante", "tipoAprovacao", "cotacoes", "data");
+        var desc = ListSort.Descending(q.Dir);
+        var ordered = sort switch
+        {
+            "status" => ListSort.By(query, s => s.Status, desc),
+            "itens" => ListSort.By(query, s => s.Itens.Count, desc),
+            "solicitante" => ListSort.By(query, s => s.SolicitadoPor.Nome, desc),
+            "tipoAprovacao" => ListSort.By(query, s => s.TipoAprovacao, desc),
+            "cotacoes" => ListSort.By(query, s => s.Cotacoes.Count, desc),
+            "data" => ListSort.By(query, s => s.CriadoEm, desc),
+            _ => ListSort.By(query, s => s.CriadoEm, true),
+        };
+
+        var items = await ordered
+            .ThenBy(s => s.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
