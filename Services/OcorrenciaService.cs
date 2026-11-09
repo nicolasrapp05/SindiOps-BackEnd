@@ -32,20 +32,12 @@ public class OcorrenciaService : IOcorrenciaService
 
     public async Task<PaginatedResponse<OcorrenciaResponse>> GetAllAsync(Guid userId, OcorrenciaQueryParams q)
     {
-        if (q.CondominioId == Guid.Empty)
-            throw new ValidationException(new[]
-            {
-                new ValidationFailure("condominioId", "condominioId é obrigatório")
-            });
-
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
-
-        var condominioOk = await _db.Condominios
-            .AnyAsync(c => c.Id == q.CondominioId && c.SindicoId == sindicoId);
-        if (!condominioOk)
-            throw new KeyNotFoundException("Condomínio não encontrado");
+        var condominioIds = await UsuarioSindicoScope.ResolverIdsCondominioAsync(
+            _db, userId, sindicoId, q.CondominioId);
 
         var query = _db.Ocorrencias
+            .Include(o => o.Condominio)
             .Include(o => o.Morador)!.ThenInclude(m => m!.Usuario)
             .Include(o => o.Morador)!.ThenInclude(m => m!.Unidades).ThenInclude(u => u.Unidade)
             .Include(o => o.Bloco)
@@ -53,7 +45,7 @@ public class OcorrenciaService : IOcorrenciaService
             .Include(o => o.RegistradoPor).ThenInclude(u => u.Sindico)
             .Include(o => o.RegistradoPor).ThenInclude(u => u.Funcionario)
             .Include(o => o.Midias)
-            .Where(o => o.CondominioId == q.CondominioId);
+            .Where(o => condominioIds.Contains(o.CondominioId));
 
         if (!string.IsNullOrWhiteSpace(q.Search))
         {
@@ -88,10 +80,11 @@ public class OcorrenciaService : IOcorrenciaService
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);
 
-        var sort = ListSort.Key(q.Sort, "status", "tipo", "origem", "local", "data");
+        var sort = ListSort.Key(q.Sort, "condominio", "status", "tipo", "origem", "local", "data");
         var desc = ListSort.Descending(q.Dir);
         var ordered = sort switch
         {
+            "condominio" => ListSort.By(query, o => o.Condominio.Nome, desc),
             "status" => ListSort.By(query, o => o.Status, desc),
             "tipo" => ListSort.By(query, o => o.TipoOcorrencia, desc),
             "origem" => ListSort.By(query, o => o.Origem, desc),
@@ -126,9 +119,12 @@ public class OcorrenciaService : IOcorrenciaService
             .Include(o => o.RegistradoPor).ThenInclude(u => u.Sindico)
             .Include(o => o.RegistradoPor).ThenInclude(u => u.Funcionario)
             .Include(o => o.Midias)
+            .Include(o => o.Condominio)
             .Include(o => o.EmailLogs)
             .FirstOrDefaultAsync(o => o.Id == id && o.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Ocorrência não encontrada");
+
+        await ExigirAcessoAsync(userId, sindicoId, entity.CondominioId);
 
         var det = _mapper.Map<OcorrenciaDetalheResponse>(entity);
 
@@ -160,7 +156,7 @@ public class OcorrenciaService : IOcorrenciaService
                 new ValidationFailure("", "Utilizador não autorizado a registrar ocorrências neste condomínio")
             });
 
-        await ValidarCondominioAsync(request.CondominioId, sindicoId);
+        await ExigirAcessoAsync(userId, sindicoId, request.CondominioId, "Condomínio não encontrado");
         await ValidarReferenciasAsync(request.CondominioId, request.BlocoId, request.UnidadeId);
         var moradorId = await ResolverMoradorDaOcupacaoAsync(request.CondominioId, request.MoradorId);
 
@@ -205,8 +201,9 @@ public class OcorrenciaService : IOcorrenciaService
             .FirstOrDefaultAsync(o => o.Id == id && o.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Ocorrência não encontrada");
 
+        await ExigirAcessoAsync(userId, sindicoId, entity.CondominioId);
         if (entity.CondominioId != request.CondominioId)
-            await ValidarCondominioAsync(request.CondominioId, sindicoId);
+            await ExigirAcessoAsync(userId, sindicoId, request.CondominioId, "Condomínio não encontrado");
 
         await ValidarReferenciasAsync(request.CondominioId, request.BlocoId, request.UnidadeId);
         var moradorId = await ResolverMoradorDaOcupacaoAsync(request.CondominioId, request.MoradorId);
@@ -241,8 +238,11 @@ public class OcorrenciaService : IOcorrenciaService
             .Include(o => o.Unidade)
             .Include(o => o.RegistradoPor).ThenInclude(u => u.Sindico)
             .Include(o => o.RegistradoPor).ThenInclude(u => u.Funcionario)
+            .Include(o => o.Condominio)
             .FirstOrDefaultAsync(o => o.Id == id && o.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Ocorrência não encontrada");
+
+        await ExigirAcessoAsync(userId, sindicoId, entity.CondominioId);
 
         if (!TransicaoStatusPermitida(entity.Status, request.Status))
             throw new ValidationException(new[]
@@ -298,6 +298,8 @@ public class OcorrenciaService : IOcorrenciaService
             .FirstOrDefaultAsync(o => o.Id == ocorrenciaId && o.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Ocorrência não encontrada");
 
+        await ExigirAcessoAsync(userId, sindicoId, ocorrencia.CondominioId);
+
         var filePath = StorageFileNameHelper.Build(ocorrencia.CondominioId, ocorrenciaId, arquivo.FileName);
 
         await using (var stream = arquivo.OpenReadStream())
@@ -341,6 +343,8 @@ public class OcorrenciaService : IOcorrenciaService
                 m.Ocorrencia.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Mídia não encontrada");
 
+        await ExigirAcessoAsync(userId, sindicoId, midia.Ocorrencia.CondominioId, "Mídia não encontrada");
+
         await _storage.DeleteAsync(midia.UrlArquivo);
 
         _db.MidiasOcorrencia.Remove(midia);
@@ -349,6 +353,7 @@ public class OcorrenciaService : IOcorrenciaService
 
     private async Task RecarregarParaListagemAsync(Ocorrencia entity)
     {
+        await _db.Entry(entity).Reference(o => o.Condominio).LoadAsync();
         await _db.Entry(entity).Collection(o => o.Midias).LoadAsync();
         await _db.Entry(entity).Reference(o => o.Morador).LoadAsync();
         if (entity.Morador != null)
@@ -363,12 +368,9 @@ public class OcorrenciaService : IOcorrenciaService
         await UsuarioPapeis.CarregarAsync(_db, entity.RegistradoPor);
     }
 
-    private async Task ValidarCondominioAsync(Guid condominioId, Guid sindicoId)
-    {
-        var ok = await _db.Condominios.AnyAsync(c => c.Id == condominioId && c.SindicoId == sindicoId);
-        if (!ok)
-            throw new KeyNotFoundException("Condomínio não encontrado");
-    }
+    private Task ExigirAcessoAsync(
+        Guid userId, Guid sindicoId, Guid condominioId, string mensagem = "Ocorrência não encontrada") =>
+        UsuarioSindicoScope.ExigirAcessoCondominioAsync(_db, userId, sindicoId, condominioId, mensagem);
 
     private async Task<Guid?> ResolverMoradorDaOcupacaoAsync(Guid condominioId, Guid? ocupacaoId)
     {

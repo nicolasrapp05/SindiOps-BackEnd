@@ -10,6 +10,7 @@ public class SolicitacaoManutencaoProfile : Profile
     public SolicitacaoManutencaoProfile()
     {
         CreateMap<SolicitacaoManutencao, SolicitacaoManutencaoResponse>()
+            .ForMember(d => d.Condominio, o => o.MapFrom(s => s.Condominio))
             .ForMember(d => d.TipoServico, o => o.MapFrom(s => s.TipoManutencao))
             .ForMember(d => d.RegistradoPor, o => o.MapFrom(s => s.SolicitadoPor))
             .ForMember(d => d.Fornecedor, o => o.MapFrom(s => s.Fornecedor))

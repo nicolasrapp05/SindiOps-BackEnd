@@ -17,6 +17,7 @@ public class SolicitacaoCompraProfile : Profile
             .ForMember(d => d.Itens, o => o.MapFrom(s => s.Itens));
 
         CreateMap<SolicitacaoCompra, SolicitacaoCompraResponse>()
+            .ForMember(d => d.Condominio, o => o.MapFrom(s => s.Condominio))
             .ForMember(d => d.Itens, o => o.MapFrom(s => s.Itens.OrderBy(i => i.Ordem).ThenBy(i => i.Descricao)))
             .ForMember(d => d.SolicitadoPor, o => o.MapFrom(s => s.SolicitadoPor))
             .ForMember(d => d.AprovadoPor, o => o.MapFrom(s => s.AprovadoPor))

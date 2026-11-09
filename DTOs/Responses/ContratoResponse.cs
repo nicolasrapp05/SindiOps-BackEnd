@@ -3,6 +3,7 @@ namespace SindiOps.API.DTOs.Responses;
 public class ContratoResponse
 {
     public Guid Id { get; set; }
+    public CondominioRefResponse Condominio { get; set; } = null!;
     public string TipoServico { get; set; } = string.Empty;
     public FornecedorRefResponse Fornecedor { get; set; } = null!;
     public DateOnly? DataInicio { get; set; }

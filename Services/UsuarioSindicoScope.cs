@@ -1,3 +1,5 @@
+using FluentValidation;
+using FluentValidation.Results;
 using Microsoft.EntityFrameworkCore;
 using SindiOps.API.Infrastructure.Data;
 
@@ -115,6 +117,44 @@ public static class UsuarioSindicoScope
         }
 
         return restritos;
+    }
+
+    /// <summary>
+    /// Ausência de <paramref name="condominioId"/> lista os condomínios acessíveis.
+    /// <see cref="Guid.Empty"/> não significa “todos”.
+    /// </summary>
+    public static async Task<List<Guid>> ResolverIdsCondominioAsync(
+        SindiOpsDbContext db,
+        Guid userId,
+        Guid sindicoId,
+        Guid? condominioId,
+        CancellationToken ct = default)
+    {
+        if (condominioId is Guid id)
+        {
+            if (id == Guid.Empty)
+                throw new ValidationException(new[]
+                {
+                    new ValidationFailure("condominioId", "condominioId é obrigatório")
+                });
+
+            await ExigirAcessoCondominioAsync(db, userId, sindicoId, id, ct: ct);
+            return [id];
+        }
+
+        return await ObterCondominiosAcessiveisAsync(db, userId, sindicoId, ct);
+    }
+
+    public static async Task ExigirAcessoCondominioAsync(
+        SindiOpsDbContext db,
+        Guid userId,
+        Guid sindicoId,
+        Guid condominioId,
+        string mensagem = "Condomínio não encontrado",
+        CancellationToken ct = default)
+    {
+        if (!await FuncionarioPodeAcessarCondominioAsync(db, userId, sindicoId, condominioId, ct))
+            throw new KeyNotFoundException(mensagem);
     }
 
     private static Task<Guid?> IdFuncionarioRestritoAsync(

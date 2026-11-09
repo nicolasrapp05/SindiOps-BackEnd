@@ -1,6 +1,4 @@
 using AutoMapper;
-using FluentValidation;
-using FluentValidation.Results;
 using Microsoft.EntityFrameworkCore;
 using SindiOps.API.Constants;
 using SindiOps.API.DTOs.Requests;
@@ -26,22 +24,13 @@ public class ManutencaoObrigatoriaService : IManutencaoObrigatoriaService
     public async Task<PaginatedResponse<ManutencaoObrigatoriaResponse>> GetAllAsync(
         Guid userId, ManutencaoObrigatoriaQueryParams q)
     {
-        if (q.CondominioId == Guid.Empty)
-            throw new ValidationException(new[]
-            {
-                new ValidationFailure("condominioId", "condominioId é obrigatório")
-            });
-
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
-
-        var condominioOk = await _db.Condominios
-            .AnyAsync(c => c.Id == q.CondominioId && c.SindicoId == sindicoId);
-        if (!condominioOk)
-            throw new KeyNotFoundException("Condomínio não encontrado");
+        var condominioIds = await UsuarioSindicoScope.ResolverIdsCondominioAsync(
+            _db, userId, sindicoId, q.CondominioId);
 
         var query = _db.ManutencoesObrigatorias
             .Include(m => m.Condominio)
-            .Where(m => m.CondominioId == q.CondominioId);
+            .Where(m => condominioIds.Contains(m.CondominioId));
 
         if (!string.IsNullOrWhiteSpace(q.Search))
         {
@@ -96,6 +85,8 @@ public class ManutencaoObrigatoriaService : IManutencaoObrigatoriaService
             .FirstOrDefaultAsync(x => x.Id == id && x.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Manutenção não encontrada");
 
+        await ExigirAcessoAsync(userId, sindicoId, m.CondominioId);
+
         return _mapper.Map<ManutencaoObrigatoriaResponse>(m);
     }
 
@@ -103,10 +94,7 @@ public class ManutencaoObrigatoriaService : IManutencaoObrigatoriaService
     {
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
 
-        var condominioOk = await _db.Condominios
-            .AnyAsync(c => c.Id == request.CondominioId && c.SindicoId == sindicoId);
-        if (!condominioOk)
-            throw new KeyNotFoundException("Condomínio não encontrado");
+        await ExigirAcessoAsync(userId, sindicoId, request.CondominioId, "Condomínio não encontrado");
 
         var manutencao = new ManutencaoObrigatoria
         {
@@ -136,13 +124,9 @@ public class ManutencaoObrigatoriaService : IManutencaoObrigatoriaService
             .FirstOrDefaultAsync(m => m.Id == id && m.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Manutenção não encontrada");
 
+        await ExigirAcessoAsync(userId, sindicoId, manutencao.CondominioId);
         if (manutencao.CondominioId != request.CondominioId)
-        {
-            var novoOk = await _db.Condominios
-                .AnyAsync(c => c.Id == request.CondominioId && c.SindicoId == sindicoId);
-            if (!novoOk)
-                throw new KeyNotFoundException("Condomínio não encontrado");
-        }
+            await ExigirAcessoAsync(userId, sindicoId, request.CondominioId, "Condomínio não encontrado");
 
         manutencao.CondominioId = request.CondominioId;
         manutencao.Tipo = request.Tipo;
@@ -165,6 +149,8 @@ public class ManutencaoObrigatoriaService : IManutencaoObrigatoriaService
             .Include(m => m.Condominio)
             .FirstOrDefaultAsync(m => m.Id == id && m.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Manutenção não encontrada");
+
+        await ExigirAcessoAsync(userId, sindicoId, manutencao.CondominioId);
 
         manutencao.UltimaRealizacao = request.DataRealizacao;
 
@@ -190,7 +176,13 @@ public class ManutencaoObrigatoriaService : IManutencaoObrigatoriaService
             .FirstOrDefaultAsync(m => m.Id == id && m.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Manutenção não encontrada");
 
+        await ExigirAcessoAsync(userId, sindicoId, manutencao.CondominioId);
+
         _db.ManutencoesObrigatorias.Remove(manutencao);
         await _db.SaveChangesAsync();
     }
+
+    private Task ExigirAcessoAsync(
+        Guid userId, Guid sindicoId, Guid condominioId, string mensagem = "Manutenção não encontrada") =>
+        UsuarioSindicoScope.ExigirAcessoCondominioAsync(_db, userId, sindicoId, condominioId, mensagem);
 }

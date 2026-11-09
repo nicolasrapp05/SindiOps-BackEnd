@@ -4,15 +4,6 @@ using SindiOps.API.DTOs.Requests;
 
 namespace SindiOps.API.Validators;
 
-public class ManutencaoObrigatoriaQueryParamsValidator : AbstractValidator<ManutencaoObrigatoriaQueryParams>
-{
-    public ManutencaoObrigatoriaQueryParamsValidator()
-    {
-        RuleFor(x => x.CondominioId)
-            .NotEmpty().WithMessage("condominioId é obrigatório");
-    }
-}
-
 public class CreateManutencaoObrigatoriaRequestValidator : AbstractValidator<CreateManutencaoObrigatoriaRequest>
 {
     public CreateManutencaoObrigatoriaRequestValidator()

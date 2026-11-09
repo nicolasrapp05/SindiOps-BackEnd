@@ -15,7 +15,8 @@ public class GerarRelatorioRequestValidator : AbstractValidator<GerarRelatorioRe
             .WithMessage("Tipo de relatório inválido");
 
         RuleFor(x => x.CondominioId)
-            .NotEmpty().WithMessage("CondominioId é obrigatório");
+            .Must(id => !id.HasValue || id.Value != Guid.Empty)
+            .WithMessage("condominioId é obrigatório");
 
         RuleFor(x => x.Formato)
             .NotEmpty().WithMessage("Formato é obrigatório")

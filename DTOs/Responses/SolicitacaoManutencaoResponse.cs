@@ -3,6 +3,7 @@ namespace SindiOps.API.DTOs.Responses;
 public class SolicitacaoManutencaoResponse
 {
     public Guid Id { get; set; }
+    public CondominioRefResponse Condominio { get; set; } = null!;
     public string TipoServico { get; set; } = string.Empty;
     public string? Local { get; set; }
     public string? Responsavel { get; set; }

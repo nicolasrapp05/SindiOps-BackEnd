@@ -2,7 +2,7 @@ namespace SindiOps.API.DTOs.Requests;
 
 public class ManutencaoObrigatoriaQueryParams
 {
-    public Guid CondominioId { get; set; }
+    public Guid? CondominioId { get; set; }
     public string? Search { get; set; }
     public string? Status { get; set; }
     public string? Tipo { get; set; }

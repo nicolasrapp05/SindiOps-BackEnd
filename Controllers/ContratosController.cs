@@ -27,7 +27,7 @@ public class ContratosController : ControllerBase
     public async Task<IActionResult> GetAll([FromQuery] ContratoQueryParams queryParams)
     {
         var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
-        var data = await _service.GetAllAsync(sindicoId, queryParams);
+        var data = await _service.GetAllAsync(sindicoId, queryParams, _currentUser.UserId);
         return Ok(data);
     }
 
@@ -36,7 +36,7 @@ public class ContratosController : ControllerBase
     public async Task<IActionResult> GetById(Guid id)
     {
         var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
-        var data = await _service.GetByIdAsync(id, sindicoId);
+        var data = await _service.GetByIdAsync(id, sindicoId, _currentUser.UserId);
         return Ok(ApiResponse<object>.Ok(data));
     }
 
@@ -45,7 +45,7 @@ public class ContratosController : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreateContratoRequest request)
     {
         var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
-        var data = await _service.CreateAsync(request, sindicoId);
+        var data = await _service.CreateAsync(request, sindicoId, _currentUser.UserId);
         return StatusCode(201, ApiResponse<object>.Ok(data, "Contrato criado com sucesso"));
     }
 
@@ -54,7 +54,7 @@ public class ContratosController : ControllerBase
     public async Task<IActionResult> Update(Guid id, [FromBody] CreateContratoRequest request)
     {
         var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
-        var data = await _service.UpdateAsync(id, request, sindicoId);
+        var data = await _service.UpdateAsync(id, request, sindicoId, _currentUser.UserId);
         return Ok(ApiResponse<object>.Ok(data));
     }
 
@@ -63,7 +63,7 @@ public class ContratosController : ControllerBase
     public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateContratoStatusRequest request)
     {
         var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
-        var data = await _service.UpdateStatusAsync(id, request, sindicoId);
+        var data = await _service.UpdateStatusAsync(id, request, sindicoId, _currentUser.UserId);
         return Ok(ApiResponse<object>.Ok(data, "Contrato cancelado com sucesso"));
     }
 
@@ -72,7 +72,7 @@ public class ContratosController : ControllerBase
     public async Task<IActionResult> Reativar(Guid id)
     {
         var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
-        var data = await _service.ReativarAsync(id, sindicoId);
+        var data = await _service.ReativarAsync(id, sindicoId, _currentUser.UserId);
         return Ok(ApiResponse<object>.Ok(data, "Contrato reativado com sucesso"));
     }
 }

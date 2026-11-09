@@ -26,21 +26,12 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
     public async Task<PaginatedResponse<SolicitacaoCompraResponse>> GetAllAsync(
         Guid userId, SolicitacaoCompraQueryParams q)
     {
-        if (q.CondominioId == Guid.Empty)
-            throw new ValidationException(new[]
-            {
-                new ValidationFailure("condominioId", "condominioId é obrigatório")
-            });
-
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
-
-        var condominioOk = await _db.Condominios
-            .AnyAsync(c => c.Id == q.CondominioId && c.SindicoId == sindicoId);
-        if (!condominioOk)
-            throw new KeyNotFoundException("Condomínio não encontrado");
+        var condominioIds = await UsuarioSindicoScope.ResolverIdsCondominioAsync(
+            _db, userId, sindicoId, q.CondominioId);
 
         var query = ComReferencias(_db.SolicitacoesCompra)
-            .Where(s => s.CondominioId == q.CondominioId);
+            .Where(s => condominioIds.Contains(s.CondominioId));
 
         if (!string.IsNullOrWhiteSpace(q.Search))
         {
@@ -63,10 +54,11 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);
 
-        var sort = ListSort.Key(q.Sort, "status", "itens", "solicitante", "tipoAprovacao", "cotacoes", "data");
+        var sort = ListSort.Key(q.Sort, "condominio", "status", "itens", "solicitante", "tipoAprovacao", "cotacoes", "data");
         var desc = ListSort.Descending(q.Dir);
         var ordered = sort switch
         {
+            "condominio" => ListSort.By(query, s => s.Condominio.Nome, desc),
             "status" => ListSort.By(query, s => s.Status, desc),
             "itens" => ListSort.By(query, s => s.Itens.Count, desc),
             "solicitante" => ListSort.By(query, s => s.SolicitadoPor.Nome, desc),
@@ -98,6 +90,8 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
             .FirstOrDefaultAsync(s => s.Id == id && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 
+        await ExigirAcessoAsync(userId, sindicoId, entity.CondominioId);
+
         return _mapper.Map<SolicitacaoCompraDetalheResponse>(entity);
     }
 
@@ -111,10 +105,7 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
                 new ValidationFailure("", "Utilizador não autorizado a criar solicitações de compra neste condomínio")
             });
 
-        var condominioOk = await _db.Condominios
-            .AnyAsync(c => c.Id == request.CondominioId && c.SindicoId == sindicoId);
-        if (!condominioOk)
-            throw new KeyNotFoundException("Condomínio não encontrado");
+        await ExigirAcessoAsync(userId, sindicoId, request.CondominioId, "Condomínio não encontrado");
 
         var entity = new SolicitacaoCompra
         {
@@ -144,15 +135,11 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
             .FirstOrDefaultAsync(s => s.Id == id && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 
+        await ExigirAcessoAsync(userId, sindicoId, entity.CondominioId);
         EnsureStatus(entity, SolicitacaoStatus.Nova, "editar a solicitação");
 
         if (entity.CondominioId != request.CondominioId)
-        {
-            var novoOk = await _db.Condominios
-                .AnyAsync(c => c.Id == request.CondominioId && c.SindicoId == sindicoId);
-            if (!novoOk)
-                throw new KeyNotFoundException("Condomínio não encontrado");
-        }
+            await ExigirAcessoAsync(userId, sindicoId, request.CondominioId, "Condomínio não encontrado");
 
         entity.CondominioId = request.CondominioId;
         entity.Justificativa = request.Justificativa;
@@ -179,6 +166,7 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
             .FirstOrDefaultAsync(s => s.Id == id && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 
+        await ExigirAcessoAsync(userId, sindicoId, entity.CondominioId);
         EnsureStatus(entity, SolicitacaoStatus.Nova, "aprovar");
 
         if (entity.Cotacoes.Count < 1)
@@ -214,6 +202,8 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
             .FirstOrDefaultAsync(s => s.Id == id && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 
+        await ExigirAcessoAsync(userId, sindicoId, entity.CondominioId);
+
         if (!TransicaoStatusPermitida(entity.Status, request.Status))
             throw new ValidationException(new[]
             {
@@ -247,10 +237,13 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
     {
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
 
-        var pertence = await _db.SolicitacoesCompra
-            .AnyAsync(s => s.Id == solicitacaoId && s.Condominio.SindicoId == sindicoId);
-        if (!pertence)
+        var condominioId = await _db.SolicitacoesCompra.AsNoTracking()
+            .Where(s => s.Id == solicitacaoId && s.Condominio.SindicoId == sindicoId)
+            .Select(s => (Guid?)s.CondominioId)
+            .FirstOrDefaultAsync();
+        if (condominioId is null)
             throw new KeyNotFoundException("Solicitação não encontrada");
+        await ExigirAcessoAsync(userId, sindicoId, condominioId.Value);
 
         var cotacoes = await _db.Cotacoes
             .Include(c => c.Fornecedor)
@@ -272,6 +265,7 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
             .FirstOrDefaultAsync(s => s.Id == solicitacaoId && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 
+        await ExigirAcessoAsync(userId, sindicoId, solicitacao.CondominioId);
         EnsureStatus(solicitacao, SolicitacaoStatus.Nova, "alterar cotações");
         await ValidarFornecedorAsync(request.FornecedorId, sindicoId);
 
@@ -312,6 +306,7 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
                 c.SolicitacaoCompra.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Cotação não encontrada");
 
+        await ExigirAcessoAsync(userId, sindicoId, cotacao.SolicitacaoCompra.CondominioId, "Cotação não encontrada");
         EnsureStatus(cotacao.SolicitacaoCompra, SolicitacaoStatus.Nova, "alterar cotações");
         await ValidarFornecedorAsync(request.FornecedorId, sindicoId);
 
@@ -342,6 +337,7 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
             .FirstOrDefaultAsync(s => s.Id == solicitacaoId && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 
+        await ExigirAcessoAsync(userId, sindicoId, solicitacao.CondominioId);
         EnsureStatus(solicitacao, SolicitacaoStatus.Nova, "alterar cotações");
 
         var cotacoes = await _db.Cotacoes
@@ -380,6 +376,7 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
                 c.SolicitacaoCompra.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Cotação não encontrada");
 
+        await ExigirAcessoAsync(userId, sindicoId, cotacao.SolicitacaoCompra.CondominioId, "Cotação não encontrada");
         EnsureStatus(cotacao.SolicitacaoCompra, SolicitacaoStatus.Nova, "alterar cotações");
 
         _db.Cotacoes.Remove(cotacao);
@@ -408,6 +405,7 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
 
     private static IQueryable<SolicitacaoCompra> ComReferencias(IQueryable<SolicitacaoCompra> query) =>
         query
+            .Include(s => s.Condominio)
             .Include(s => s.Itens)
             .Include(s => s.SolicitadoPor).ThenInclude(u => u.Sindico)
             .Include(s => s.SolicitadoPor).ThenInclude(u => u.Funcionario)
@@ -418,6 +416,7 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
 
     private async Task CarregarAutorAsync(SolicitacaoCompra entity)
     {
+        await _db.Entry(entity).Reference(s => s.Condominio).LoadAsync();
         await _db.Entry(entity).Reference(s => s.SolicitadoPor).LoadAsync();
         await UsuarioPapeis.CarregarAsync(_db, entity.SolicitadoPor);
     }
@@ -484,6 +483,10 @@ public class SolicitacaoCompraService : ISolicitacaoCompraService
         Unidade = string.IsNullOrWhiteSpace(pedido.Unidade) ? null : pedido.Unidade.Trim(),
         EReposicao = pedido.EReposicao,
     };
+
+    private Task ExigirAcessoAsync(
+        Guid userId, Guid sindicoId, Guid condominioId, string mensagem = "Solicitação não encontrada") =>
+        UsuarioSindicoScope.ExigirAcessoCondominioAsync(_db, userId, sindicoId, condominioId, mensagem);
 
     private async Task ValidarFornecedorAsync(Guid? fornecedorId, Guid sindicoId)
     {

@@ -13,6 +13,7 @@ public class SolicitacaoCompraItemResponse
 public class SolicitacaoCompraResponse
 {
     public Guid Id { get; set; }
+    public CondominioRefResponse Condominio { get; set; } = null!;
     public List<SolicitacaoCompraItemResponse> Itens { get; set; } = [];
     public string Status { get; set; } = string.Empty;
     public string? TipoAprovacao { get; set; }

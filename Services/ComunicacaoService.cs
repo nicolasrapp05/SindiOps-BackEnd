@@ -47,6 +47,9 @@ public class ComunicacaoService : IComunicacaoService
             .FirstOrDefaultAsync(o => o.Id == ocorrenciaId && o.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Ocorrência não encontrada");
 
+        await UsuarioSindicoScope.ExigirAcessoCondominioAsync(
+            _db, enviadoPorId, sindicoId, ocorrencia.CondominioId, "Ocorrência não encontrada");
+
         var template = await _db.EmailTemplates
             .FirstOrDefaultAsync(t => t.Id == request.TemplateId && t.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Template não encontrado");

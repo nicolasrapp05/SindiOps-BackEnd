@@ -40,7 +40,7 @@ public class OrcamentoManutencaoService : IOrcamentoManutencaoService
         Guid solicitacaoId, CreateOrcamentoManutencaoRequest request, Guid userId)
     {
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
-        var solicitacao = await ExigirSolicitacaoAsync(solicitacaoId, sindicoId, tracked: true);
+        var solicitacao = await ExigirSolicitacaoAsync(solicitacaoId, sindicoId, userId, tracked: true);
         EnsureEditavel(solicitacao);
 
         var fornecedorId = await NormalizarFornecedorAsync(request, sindicoId);
@@ -74,7 +74,7 @@ public class OrcamentoManutencaoService : IOrcamentoManutencaoService
         Guid solicitacaoId, Guid orcamentoId, CreateOrcamentoManutencaoRequest request, Guid userId)
     {
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
-        var orcamento = await ExigirOrcamentoAsync(solicitacaoId, orcamentoId, sindicoId);
+        var orcamento = await ExigirOrcamentoAsync(solicitacaoId, orcamentoId, sindicoId, userId);
         EnsureEditavel(orcamento.SolicitacaoManutencao);
 
         var fornecedorId = await NormalizarFornecedorAsync(request, sindicoId);
@@ -103,7 +103,7 @@ public class OrcamentoManutencaoService : IOrcamentoManutencaoService
 
         await using var tx = await _db.Database.BeginTransactionAsync();
 
-        var solicitacao = await ExigirSolicitacaoAsync(solicitacaoId, sindicoId, tracked: true);
+        var solicitacao = await ExigirSolicitacaoAsync(solicitacaoId, sindicoId, userId, tracked: true);
         EnsureEditavel(solicitacao);
 
         var orcamentos = await _db.OrcamentosManutencao
@@ -132,7 +132,7 @@ public class OrcamentoManutencaoService : IOrcamentoManutencaoService
     public async Task DeleteAsync(Guid solicitacaoId, Guid orcamentoId, Guid userId)
     {
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
-        var orcamento = await ExigirOrcamentoAsync(solicitacaoId, orcamentoId, sindicoId);
+        var orcamento = await ExigirOrcamentoAsync(solicitacaoId, orcamentoId, sindicoId, userId);
         EnsureEditavel(orcamento.SolicitacaoManutencao);
 
         _db.OrcamentosManutencao.Remove(orcamento);
@@ -147,6 +147,8 @@ public class OrcamentoManutencaoService : IOrcamentoManutencaoService
         var solicitacao = await ComReferencias(_db.SolicitacoesManutencao)
             .FirstOrDefaultAsync(s => s.Id == solicitacaoId && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
+
+        await ExigirAcessoAsync(userId, sindicoId, solicitacao.CondominioId);
 
         if (solicitacao.Status is not (SolicitacaoStatus.Nova or SolicitacaoStatus.EmAndamento))
             throw Falha("status", "Só é possível aprovar um orçamento de um chamado novo ou em andamento.");
@@ -187,6 +189,8 @@ public class OrcamentoManutencaoService : IOrcamentoManutencaoService
             .FirstOrDefaultAsync(s => s.Id == solicitacaoId && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
 
+        await ExigirAcessoAsync(userId, sindicoId, solicitacao.CondominioId);
+
         if (solicitacao.Status == SolicitacaoStatus.Finalizada)
             throw Falha("status", "Não é possível reabrir o orçamento de um chamado finalizado.");
 
@@ -204,22 +208,27 @@ public class OrcamentoManutencaoService : IOrcamentoManutencaoService
     private async Task ExigirSolicitacaoAsync(Guid solicitacaoId, Guid userId)
     {
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
-        await ExigirSolicitacaoAsync(solicitacaoId, sindicoId, tracked: false);
+        await ExigirSolicitacaoAsync(solicitacaoId, sindicoId, userId, tracked: false);
     }
 
-    private async Task<SolicitacaoManutencao> ExigirSolicitacaoAsync(Guid solicitacaoId, Guid sindicoId, bool tracked)
+    private async Task<SolicitacaoManutencao> ExigirSolicitacaoAsync(
+        Guid solicitacaoId, Guid sindicoId, Guid userId, bool tracked)
     {
         var query = _db.SolicitacoesManutencao.AsQueryable();
         if (!tracked)
             query = query.AsNoTracking();
 
-        return await query.FirstOrDefaultAsync(s => s.Id == solicitacaoId && s.Condominio.SindicoId == sindicoId)
+        var solicitacao = await query.FirstOrDefaultAsync(s => s.Id == solicitacaoId && s.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Solicitação não encontrada");
+
+        await ExigirAcessoAsync(userId, sindicoId, solicitacao.CondominioId);
+        return solicitacao;
     }
 
-    private async Task<OrcamentoManutencao> ExigirOrcamentoAsync(Guid solicitacaoId, Guid orcamentoId, Guid sindicoId)
+    private async Task<OrcamentoManutencao> ExigirOrcamentoAsync(
+        Guid solicitacaoId, Guid orcamentoId, Guid sindicoId, Guid userId)
     {
-        return await _db.OrcamentosManutencao
+        var orcamento = await _db.OrcamentosManutencao
             .Include(o => o.Fornecedor)
             .Include(o => o.SolicitacaoManutencao)
             .FirstOrDefaultAsync(o =>
@@ -227,7 +236,14 @@ public class OrcamentoManutencaoService : IOrcamentoManutencaoService
                 o.SolicitacaoManutencaoId == solicitacaoId &&
                 o.SolicitacaoManutencao.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Orçamento não encontrado");
+
+        await ExigirAcessoAsync(userId, sindicoId, orcamento.SolicitacaoManutencao.CondominioId, "Orçamento não encontrado");
+        return orcamento;
     }
+
+    private Task ExigirAcessoAsync(
+        Guid userId, Guid sindicoId, Guid condominioId, string mensagem = "Solicitação não encontrada") =>
+        UsuarioSindicoScope.ExigirAcessoCondominioAsync(_db, userId, sindicoId, condominioId, mensagem);
 
     private async Task<Guid?> NormalizarFornecedorAsync(CreateOrcamentoManutencaoRequest request, Guid sindicoId)
     {
@@ -273,6 +289,7 @@ public class OrcamentoManutencaoService : IOrcamentoManutencaoService
 
     private static IQueryable<SolicitacaoManutencao> ComReferencias(IQueryable<SolicitacaoManutencao> query) =>
         query
+            .Include(s => s.Condominio)
             .Include(s => s.Fornecedor)
             .Include(s => s.Orcamentos)
             .Include(s => s.OrcamentoAprovadoPor!).ThenInclude(u => u.Sindico)

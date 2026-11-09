@@ -23,16 +23,18 @@ public class ContratoService : IContratoService
         _mapper = mapper;
     }
 
-    public async Task<PaginatedResponse<ContratoResponse>> GetAllAsync(Guid sindicoId, ContratoQueryParams q)
+    public async Task<PaginatedResponse<ContratoResponse>> GetAllAsync(
+        Guid sindicoId, ContratoQueryParams q, Guid userId = default)
     {
-        await SincronizarStatusAutomaticosAsync(sindicoId, q.CondominioId);
+        var usuarioId = await UsuarioAsync(sindicoId, userId);
+        var condominioIds = await UsuarioSindicoScope.ResolverIdsCondominioAsync(
+            _db, usuarioId, sindicoId, q.CondominioId);
+        await SincronizarStatusAutomaticosAsync(sindicoId, condominioIds);
 
         var query = _db.Contratos
+            .Include(c => c.Condominio)
             .Include(c => c.Fornecedor)
-            .Where(c => c.Condominio.SindicoId == sindicoId);
-
-        if (q.CondominioId.HasValue)
-            query = query.Where(c => c.CondominioId == q.CondominioId.Value);
+            .Where(c => c.Condominio.SindicoId == sindicoId && condominioIds.Contains(c.CondominioId));
 
         if (q.FornecedorId.HasValue)
             query = query.Where(c => c.FornecedorId == q.FornecedorId.Value);
@@ -52,10 +54,11 @@ public class ContratoService : IContratoService
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);
 
-        var sort = ListSort.Key(q.Sort, "tipo", "fornecedor", "inicio", "termino", "valor", "status");
+        var sort = ListSort.Key(q.Sort, "condominio", "tipo", "fornecedor", "inicio", "termino", "valor", "status");
         var desc = ListSort.Descending(q.Dir);
         var ordered = sort switch
         {
+            "condominio" => ListSort.By(query, c => c.Condominio.Nome, desc),
             "tipo" => ListSort.By(query, c => c.TipoServico, desc),
             "fornecedor" => ListSort.By(query, c => c.Fornecedor.Nome, desc),
             "inicio" => ListSort.By(query, c => c.DataInicio, desc),
@@ -79,12 +82,15 @@ public class ContratoService : IContratoService
         };
     }
 
-    public async Task<ContratoDetalheResponse> GetByIdAsync(Guid id, Guid sindicoId)
+    public async Task<ContratoDetalheResponse> GetByIdAsync(Guid id, Guid sindicoId, Guid userId = default)
     {
         var contrato = await _db.Contratos
+            .Include(c => c.Condominio)
             .Include(c => c.Fornecedor)
             .FirstOrDefaultAsync(c => c.Id == id && c.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Contrato não encontrado");
+
+        await ExigirAcessoAsync(await UsuarioAsync(sindicoId, userId), sindicoId, contrato.CondominioId);
 
         if (ContratoStatusCalculator.TryApplyAutomaticStatus(contrato))
             await _db.SaveChangesAsync();
@@ -92,9 +98,11 @@ public class ContratoService : IContratoService
         return _mapper.Map<ContratoDetalheResponse>(contrato);
     }
 
-    public async Task<ContratoDetalheResponse> CreateAsync(CreateContratoRequest request, Guid sindicoId)
+    public async Task<ContratoDetalheResponse> CreateAsync(
+        CreateContratoRequest request, Guid sindicoId, Guid userId = default)
     {
-        await VerificarCondominioAsync(request.CondominioId, sindicoId);
+        await ExigirAcessoAsync(
+            await UsuarioAsync(sindicoId, userId), sindicoId, request.CondominioId, "Condomínio não encontrado");
         await VerificarFornecedorAsync(request.FornecedorId, sindicoId);
 
         var contrato = new Contrato
@@ -118,21 +126,25 @@ public class ContratoService : IContratoService
         _db.Contratos.Add(contrato);
         await _db.SaveChangesAsync();
 
+        await _db.Entry(contrato).Reference(c => c.Condominio).LoadAsync();
         await _db.Entry(contrato).Reference(c => c.Fornecedor).LoadAsync();
 
         return _mapper.Map<ContratoDetalheResponse>(contrato);
     }
 
-    public async Task<ContratoDetalheResponse> UpdateAsync(Guid id, CreateContratoRequest request, Guid sindicoId)
+    public async Task<ContratoDetalheResponse> UpdateAsync(
+        Guid id, CreateContratoRequest request, Guid sindicoId, Guid userId = default)
     {
+        var usuarioId = await UsuarioAsync(sindicoId, userId);
         var contrato = await _db.Contratos
+            .Include(c => c.Condominio)
             .Include(c => c.Fornecedor)
             .FirstOrDefaultAsync(c => c.Id == id && c.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Contrato não encontrado");
 
-        // permite trocar condomínio/fornecedor — revalida propriedade
+        await ExigirAcessoAsync(usuarioId, sindicoId, contrato.CondominioId);
         if (contrato.CondominioId != request.CondominioId)
-            await VerificarCondominioAsync(request.CondominioId, sindicoId);
+            await ExigirAcessoAsync(usuarioId, sindicoId, request.CondominioId, "Condomínio não encontrado");
 
         if (contrato.FornecedorId != request.FornecedorId)
             await VerificarFornecedorAsync(request.FornecedorId, sindicoId);
@@ -154,19 +166,23 @@ public class ContratoService : IContratoService
 
         await _db.SaveChangesAsync();
 
-        // recarrega fornecedor caso tenha mudado
+        if (contrato.Condominio.Id != contrato.CondominioId)
+            contrato.Condominio = await _db.Condominios.FirstAsync(c => c.Id == contrato.CondominioId);
         await _db.Entry(contrato).Reference(c => c.Fornecedor).LoadAsync();
 
         return _mapper.Map<ContratoDetalheResponse>(contrato);
     }
 
     public async Task<ContratoDetalheResponse> UpdateStatusAsync(
-        Guid id, UpdateContratoStatusRequest request, Guid sindicoId)
+        Guid id, UpdateContratoStatusRequest request, Guid sindicoId, Guid userId = default)
     {
         var contrato = await _db.Contratos
+            .Include(c => c.Condominio)
             .Include(c => c.Fornecedor)
             .FirstOrDefaultAsync(c => c.Id == id && c.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Contrato não encontrado");
+
+        await ExigirAcessoAsync(await UsuarioAsync(sindicoId, userId), sindicoId, contrato.CondominioId);
 
         if (request.Status != ContratoStatus.Cancelled)
         {
@@ -193,12 +209,15 @@ public class ContratoService : IContratoService
         return _mapper.Map<ContratoDetalheResponse>(contrato);
     }
 
-    public async Task<ContratoDetalheResponse> ReativarAsync(Guid id, Guid sindicoId)
+    public async Task<ContratoDetalheResponse> ReativarAsync(Guid id, Guid sindicoId, Guid userId = default)
     {
         var contrato = await _db.Contratos
+            .Include(c => c.Condominio)
             .Include(c => c.Fornecedor)
             .FirstOrDefaultAsync(c => c.Id == id && c.Condominio.SindicoId == sindicoId)
             ?? throw new KeyNotFoundException("Contrato não encontrado");
+
+        await ExigirAcessoAsync(await UsuarioAsync(sindicoId, userId), sindicoId, contrato.CondominioId);
 
         if (contrato.Status != ContratoStatus.Cancelled)
         {
@@ -216,13 +235,15 @@ public class ContratoService : IContratoService
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private async Task SincronizarStatusAutomaticosAsync(Guid sindicoId, Guid? condominioId)
+    private async Task SincronizarStatusAutomaticosAsync(Guid sindicoId, IReadOnlyCollection<Guid> condominioIds)
     {
-        var query = _db.Contratos
-            .Where(c => c.Condominio.SindicoId == sindicoId && c.Status != ContratoStatus.Cancelled);
+        if (condominioIds.Count == 0)
+            return;
 
-        if (condominioId.HasValue)
-            query = query.Where(c => c.CondominioId == condominioId.Value);
+        var query = _db.Contratos
+            .Where(c => c.Condominio.SindicoId == sindicoId
+                        && c.Status != ContratoStatus.Cancelled
+                        && condominioIds.Contains(c.CondominioId));
 
         var contratos = await query.ToListAsync();
         var hoje = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -238,14 +259,20 @@ public class ContratoService : IContratoService
             await _db.SaveChangesAsync();
     }
 
-    private async Task VerificarCondominioAsync(Guid condominioId, Guid sindicoId)
+    private async Task<Guid> UsuarioAsync(Guid sindicoId, Guid userId)
     {
-        var pertence = await _db.Condominios
-            .AnyAsync(c => c.Id == condominioId && c.SindicoId == sindicoId);
+        if (userId != Guid.Empty)
+            return userId;
 
-        if (!pertence)
-            throw new KeyNotFoundException("Condomínio não encontrado");
+        return await _db.Sindicos.AsNoTracking()
+            .Where(s => s.Id == sindicoId)
+            .Select(s => s.UsuarioId)
+            .FirstAsync();
     }
+
+    private Task ExigirAcessoAsync(
+        Guid userId, Guid sindicoId, Guid condominioId, string mensagem = "Contrato não encontrado") =>
+        UsuarioSindicoScope.ExigirAcessoCondominioAsync(_db, userId, sindicoId, condominioId, mensagem);
 
     private async Task VerificarFornecedorAsync(Guid fornecedorId, Guid sindicoId)
     {

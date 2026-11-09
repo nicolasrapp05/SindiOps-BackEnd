@@ -26,12 +26,14 @@ public class MoradorService : IMoradorService
     }
 
     public async Task<PaginatedResponse<MoradorResponse>> GetAllAsync(
-        Guid condominioId, Guid sindicoId, MoradorQueryParams q)
+        Guid? condominioId, Guid sindicoId, MoradorQueryParams q, Guid userId = default)
     {
-        await VerificarCondominioAsync(condominioId, sindicoId);
+        var usuarioId = await UsuarioAsync(sindicoId, userId);
+        var condominioIds = await UsuarioSindicoScope.ResolverIdsCondominioAsync(
+            _db, usuarioId, sindicoId, condominioId);
 
         var query = QueryDaCarteira(sindicoId)
-            .Where(o => o.Unidade.CondominioId == condominioId);
+            .Where(o => condominioIds.Contains(o.Unidade.CondominioId));
 
         if (q.BlocoId.HasValue)
             query = query.Where(o => o.Unidade.BlocoId == q.BlocoId.Value);
@@ -51,10 +53,11 @@ public class MoradorService : IMoradorService
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);
 
-        var sort = ListSort.Key(q.Sort, "nome", "papel", "bloco", "unidade");
+        var sort = ListSort.Key(q.Sort, "condominio", "nome", "papel", "bloco", "unidade");
         var desc = ListSort.Descending(q.Dir);
         var ordered = sort switch
         {
+            "condominio" => ListSort.By(query, o => o.Unidade.Condominio.Nome, desc),
             "papel" => ListSort.By(query, o => o.Papel, desc),
             "bloco" => ListSort.By(query, o => o.Unidade.Bloco.Nome, desc),
             "unidade" => ListSort.By(query, o => o.Unidade.Numero, desc),
@@ -76,7 +79,7 @@ public class MoradorService : IMoradorService
         };
     }
 
-    public async Task<MoradorDetalheResponse> GetByIdAsync(Guid id, Guid sindicoId)
+    public async Task<MoradorDetalheResponse> GetByIdAsync(Guid id, Guid sindicoId, Guid userId = default)
     {
         var ocupacao = await QueryDaCarteira(sindicoId)
             .Include(o => o.Morador)
@@ -84,15 +87,19 @@ public class MoradorService : IMoradorService
             .FirstOrDefaultAsync(o => o.Id == id)
             ?? throw new KeyNotFoundException("Morador não encontrado");
 
+        await ExigirAcessoAsync(await UsuarioAsync(sindicoId, userId), sindicoId, ocupacao.Unidade.CondominioId);
+
         return _mapper.Map<MoradorDetalheResponse>(ocupacao);
     }
 
-    public async Task<MoradorResponse> CreateAsync(CreateMoradorRequest request, Guid sindicoId)
+    public async Task<MoradorResponse> CreateAsync(CreateMoradorRequest request, Guid sindicoId, Guid userId = default)
     {
-        await VerificarCondominioAsync(request.CondominioId, sindicoId);
+        await ExigirAcessoAsync(
+            await UsuarioAsync(sindicoId, userId), sindicoId, request.CondominioId, "Condomínio não encontrado");
 
         var unidade = await _db.Unidades
             .Include(u => u.Bloco)
+            .Include(u => u.Condominio)
             .FirstOrDefaultAsync(u => u.Id == request.UnidadeId && u.CondominioId == request.CondominioId)
             ?? throw new KeyNotFoundException("Unidade não encontrada neste condomínio");
 
@@ -127,7 +134,7 @@ public class MoradorService : IMoradorService
         return _mapper.Map<MoradorResponse>(ocupacao);
     }
 
-    public async Task<MoradorResponse> UpdateAsync(Guid id, UpdateMoradorRequest request, Guid sindicoId)
+    public async Task<MoradorResponse> UpdateAsync(Guid id, UpdateMoradorRequest request, Guid sindicoId, Guid userId = default)
     {
         var ocupacao = await QueryDaCarteira(sindicoId)
             .Include(o => o.Morador)
@@ -139,8 +146,11 @@ public class MoradorService : IMoradorService
             .FirstOrDefaultAsync(o => o.Id == id)
             ?? throw new KeyNotFoundException("Morador não encontrado");
 
+        await ExigirAcessoAsync(await UsuarioAsync(sindicoId, userId), sindicoId, ocupacao.Unidade.CondominioId);
+
         var unidade = await _db.Unidades
             .Include(u => u.Bloco)
+            .Include(u => u.Condominio)
             .FirstOrDefaultAsync(u => u.Id == request.UnidadeId && u.CondominioId == ocupacao.Unidade.CondominioId)
             ?? throw new KeyNotFoundException("Unidade não encontrada neste condomínio");
 
@@ -202,25 +212,29 @@ public class MoradorService : IMoradorService
         return _mapper.Map<MoradorResponse>(ocupacao);
     }
 
-    public async Task DeleteAsync(Guid id, Guid sindicoId)
+    public async Task DeleteAsync(Guid id, Guid sindicoId, Guid userId = default)
     {
         var ocupacao = await QueryDaCarteira(sindicoId)
             .FirstOrDefaultAsync(o => o.Id == id)
             ?? throw new KeyNotFoundException("Morador não encontrado");
+
+        await ExigirAcessoAsync(await UsuarioAsync(sindicoId, userId), sindicoId, ocupacao.Unidade.CondominioId);
 
         ocupacao.DeletadoEm = DateTime.UtcNow;
         await _db.SaveChangesAsync();
     }
 
     public async Task<PaginatedResponse<EmailLogResumoResponse>> GetEmailLogsAsync(
-        Guid moradorId, Guid sindicoId, int page, int pageSize)
+        Guid moradorId, Guid sindicoId, int page, int pageSize, Guid userId = default)
     {
         var ocupacao = await QueryDaCarteira(sindicoId)
-            .Select(o => new { o.Id, o.MoradorId })
+            .Select(o => new { o.Id, o.MoradorId, o.Unidade.CondominioId })
             .FirstOrDefaultAsync(o => o.Id == moradorId);
 
         if (ocupacao is null)
             throw new KeyNotFoundException("Morador não encontrado");
+
+        await ExigirAcessoAsync(await UsuarioAsync(sindicoId, userId), sindicoId, ocupacao.CondominioId);
 
         var query = _db.EmailLogs.Where(e => e.MoradorId == ocupacao.MoradorId);
         var totalCount = await query.CountAsync();
@@ -253,16 +267,24 @@ public class MoradorService : IMoradorService
             .ThenInclude(m => m.Usuario)
             .Include(o => o.Unidade)
             .ThenInclude(u => u.Bloco)
+            .Include(o => o.Unidade)
+            .ThenInclude(u => u.Condominio)
             .Where(o => o.Unidade.Condominio.SindicoId == sindicoId);
 
-    private async Task VerificarCondominioAsync(Guid condominioId, Guid sindicoId)
+    private async Task<Guid> UsuarioAsync(Guid sindicoId, Guid userId)
     {
-        var pertence = await _db.Condominios
-            .AnyAsync(c => c.Id == condominioId && c.SindicoId == sindicoId);
+        if (userId != Guid.Empty)
+            return userId;
 
-        if (!pertence)
-            throw new KeyNotFoundException("Condomínio não encontrado");
+        return await _db.Sindicos.AsNoTracking()
+            .Where(s => s.Id == sindicoId)
+            .Select(s => s.UsuarioId)
+            .FirstAsync();
     }
+
+    private Task ExigirAcessoAsync(
+        Guid userId, Guid sindicoId, Guid condominioId, string mensagem = "Morador não encontrado") =>
+        UsuarioSindicoScope.ExigirAcessoCondominioAsync(_db, userId, sindicoId, condominioId, mensagem);
 
     private async Task GarantirProprietarioUnicoAsync(Guid unidadeId, string papel, Guid? ignorarOcupacaoId)
     {

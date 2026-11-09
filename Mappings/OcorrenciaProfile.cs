@@ -12,6 +12,7 @@ public class OcorrenciaProfile : Profile
     public OcorrenciaProfile()
     {
         CreateMap<Ocorrencia, OcorrenciaResponse>()
+            .ForMember(d => d.Condominio, o => o.MapFrom(s => s.Condominio))
             .ForMember(d => d.Descricao, o => o.MapFrom(s =>
                 s.Descricao.Length > DescricaoListagemMax
                     ? s.Descricao.Substring(0, DescricaoListagemMax)

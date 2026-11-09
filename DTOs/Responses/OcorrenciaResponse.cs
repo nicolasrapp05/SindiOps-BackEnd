@@ -3,6 +3,7 @@ namespace SindiOps.API.DTOs.Responses;
 public class OcorrenciaResponse
 {
     public Guid Id { get; set; }
+    public CondominioRefResponse Condominio { get; set; } = null!;
     public string Origem { get; set; } = string.Empty;
     public string TipoLocal { get; set; } = string.Empty;
     public string TipoOcorrencia { get; set; } = string.Empty;

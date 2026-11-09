@@ -8,9 +8,6 @@ public class SolicitacaoCompraQueryParamsValidator : AbstractValidator<Solicitac
 {
     public SolicitacaoCompraQueryParamsValidator()
     {
-        RuleFor(x => x.CondominioId)
-            .NotEmpty().WithMessage("condominioId é obrigatório");
-
         RuleFor(x => x.SituacaoCotacao)
             .Must(s => string.IsNullOrWhiteSpace(s) || SituacaoCotacao.Todas.Contains(s))
             .WithMessage($"Situação de cotação inválida. Valores aceitos: {string.Join(", ", SituacaoCotacao.Todas)}");

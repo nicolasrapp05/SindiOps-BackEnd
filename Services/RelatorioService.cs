@@ -26,20 +26,18 @@ public class RelatorioService : IRelatorioService
         string cargo)
     {
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
-
-        var condominioOk = await _db.Condominios.AsNoTracking()
-            .AnyAsync(c => c.Id == request.CondominioId && c.SindicoId == sindicoId);
-        if (!condominioOk)
-            throw new KeyNotFoundException("Condomínio não encontrado");
+        var ids = await UsuarioSindicoScope.ResolverIdsCondominioAsync(
+            _db, userId, sindicoId, request.CondominioId);
+        var todos = !request.CondominioId.HasValue;
 
         var doc = request.Tipo switch
         {
-            RelatorioTipo.Ocorrencias => await BuildOcorrenciasAsync(request),
-            RelatorioTipo.MapaCotacoes => await BuildMapaCotacoesAsync(request),
-            RelatorioTipo.ListaCompras => await BuildListaComprasAsync(request),
-            RelatorioTipo.AgendaPrazos => await BuildAgendaPrazosAsync(request, cargo),
-            RelatorioTipo.AgendaMandatos => await BuildAgendaMandatosAsync(request),
-            RelatorioTipo.Manutencoes => await BuildManutencoesAsync(request),
+            RelatorioTipo.Ocorrencias => await BuildOcorrenciasAsync(request, ids, todos),
+            RelatorioTipo.MapaCotacoes => await BuildMapaCotacoesAsync(request, ids, todos),
+            RelatorioTipo.ListaCompras => await BuildListaComprasAsync(request, ids, todos),
+            RelatorioTipo.AgendaPrazos => await BuildAgendaPrazosAsync(request, cargo, ids, todos),
+            RelatorioTipo.AgendaMandatos => await BuildAgendaMandatosAsync(ids),
+            RelatorioTipo.Manutencoes => await BuildManutencoesAsync(request, ids, todos),
             _ => throw new ArgumentOutOfRangeException(nameof(request.Tipo), request.Tipo, "Tipo de relatório inválido.")
         };
 
@@ -65,13 +63,15 @@ public class RelatorioService : IRelatorioService
         return (bytes, contentType, fileName);
     }
 
-    private async Task<ReportDocumentModel> BuildOcorrenciasAsync(GerarRelatorioRequest request)
+    private async Task<ReportDocumentModel> BuildOcorrenciasAsync(
+        GerarRelatorioRequest request, IReadOnlyList<Guid> ids, bool todos)
     {
         var (ini, fim) = ParseIntervaloUtc(request.Filtros);
         var statusFiltro = GetFiltro(request.Filtros, "status");
 
         var query = _db.Ocorrencias.AsNoTracking()
-            .Where(o => o.CondominioId == request.CondominioId);
+            .Include(o => o.Condominio)
+            .Where(o => ids.Contains(o.CondominioId));
 
         if (ini.HasValue)
             query = query.Where(o => o.OcorreuEm >= ini.Value);
@@ -82,15 +82,16 @@ public class RelatorioService : IRelatorioService
 
         var list = await query.OrderByDescending(o => o.OcorreuEm).ToListAsync();
 
-        var colunas = new[] { "Ocorreu em", "Tipo", "Status", "Origem", "Descrição" };
-        var linhas = list.Select(o => (IReadOnlyList<string>)new[]
-        {
+        var colunas = Colunas(todos, "Ocorreu em", "Tipo", "Status", "Origem", "Descrição");
+        var linhas = list.Select(o => Linha(
+            todos,
+            o.Condominio.Nome,
             BrazilTime.ToBrazil(o.OcorreuEm).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture),
             o.TipoOcorrencia,
             o.Status,
             o.Origem,
             Truncar(o.Descricao, 200)
-        }).ToList();
+        )).ToList();
 
         return new ReportDocumentModel
         {
@@ -101,15 +102,16 @@ public class RelatorioService : IRelatorioService
         };
     }
 
-    private async Task<ReportDocumentModel> BuildMapaCotacoesAsync(GerarRelatorioRequest request)
+    private async Task<ReportDocumentModel> BuildMapaCotacoesAsync(
+        GerarRelatorioRequest request, IReadOnlyList<Guid> ids, bool todos)
     {
         var (ini, fim) = ParseIntervaloUtc(request.Filtros);
 
         var query = _db.Cotacoes.AsNoTracking()
             .Include(c => c.Itens).ThenInclude(i => i.Item)
-            .Include(c => c.SolicitacaoCompra)
+            .Include(c => c.SolicitacaoCompra).ThenInclude(s => s.Condominio)
             .Include(c => c.Fornecedor)
-            .Where(c => c.SolicitacaoCompra.CondominioId == request.CondominioId);
+            .Where(c => ids.Contains(c.SolicitacaoCompra.CondominioId));
 
         if (ini.HasValue)
             query = query.Where(c => c.CriadoEm >= ini.Value);
@@ -118,16 +120,15 @@ public class RelatorioService : IRelatorioService
 
         var list = await query.OrderByDescending(c => c.CriadoEm).ToListAsync();
 
-        var colunas = new[]
-        {
-            "Item", "Categoria", "Fornecedor", "Valor unit.", "Valor total", "Selecionada", "Criado em"
-        };
+        var colunas = Colunas(
+            todos, "Item", "Categoria", "Fornecedor", "Valor unit.", "Valor total", "Selecionada", "Criado em");
 
         var linhas = list.SelectMany(c =>
         {
             var fornecedorNome = c.Fornecedor?.Nome ?? c.NomeEmpresa ?? "—";
-            return c.Itens.Select(linha => (IReadOnlyList<string>)new[]
-            {
+            return c.Itens.Select(linha => Linha(
+                todos,
+                c.SolicitacaoCompra.Condominio.Nome,
                 linha.Item.Descricao,
                 linha.Item.Categoria,
                 fornecedorNome,
@@ -135,7 +136,7 @@ public class RelatorioService : IRelatorioService
                 linha.ValorTotal.ToString("F2", CultureInfo.InvariantCulture),
                 c.Selecionada ? "Sim" : "Não",
                 c.CriadoEm.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) + " UTC"
-            });
+            ));
         }).ToList();
 
         return new ReportDocumentModel
@@ -147,14 +148,16 @@ public class RelatorioService : IRelatorioService
         };
     }
 
-    private async Task<ReportDocumentModel> BuildListaComprasAsync(GerarRelatorioRequest request)
+    private async Task<ReportDocumentModel> BuildListaComprasAsync(
+        GerarRelatorioRequest request, IReadOnlyList<Guid> ids, bool todos)
     {
         var (ini, fim) = ParseIntervaloUtc(request.Filtros);
         var statusFiltro = GetFiltro(request.Filtros, "status");
 
         var query = _db.SolicitacoesCompra.AsNoTracking()
+            .Include(s => s.Condominio)
             .Include(s => s.Itens)
-            .Where(s => s.CondominioId == request.CondominioId);
+            .Where(s => ids.Contains(s.CondominioId));
 
         if (ini.HasValue)
             query = query.Where(s => s.CriadoEm >= ini.Value);
@@ -165,16 +168,17 @@ public class RelatorioService : IRelatorioService
 
         var list = await query.OrderByDescending(s => s.CriadoEm).ToListAsync();
 
-        var colunas = new[] { "Item", "Categoria", "Quantidade", "Status", "Reposição", "Criado em" };
-        var linhas = list.SelectMany(s => s.Itens.Select(item => (IReadOnlyList<string>)new[]
-        {
+        var colunas = Colunas(todos, "Item", "Categoria", "Quantidade", "Status", "Reposição", "Criado em");
+        var linhas = list.SelectMany(s => s.Itens.Select(item => Linha(
+            todos,
+            s.Condominio.Nome,
             item.Descricao,
             item.Categoria,
             item.Quantidade.ToString("F2", CultureInfo.InvariantCulture),
             s.Status,
             item.EReposicao ? "Sim" : "Não",
             s.CriadoEm.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) + " UTC"
-        })).ToList();
+        ))).ToList();
 
         return new ReportDocumentModel
         {
@@ -185,9 +189,10 @@ public class RelatorioService : IRelatorioService
         };
     }
 
-    private async Task<ReportDocumentModel> BuildAgendaPrazosAsync(GerarRelatorioRequest request, string cargo)
+    private async Task<ReportDocumentModel> BuildAgendaPrazosAsync(
+        GerarRelatorioRequest request, string cargo, IReadOnlyList<Guid> ids, bool todos)
     {
-        var colunas = new[] { "Tipo", "Descrição", "Data vencimento", "Status", "Referência (Id)" };
+        var colunas = Colunas(todos, "Tipo", "Descrição", "Data vencimento", "Status", "Referência (Id)");
         var itens = new List<(DateOnly Data, string Tipo, string Status, string[] Linha)>();
         var tipoFiltro = GetFiltro(request.Filtros, "tipo");
         var statusFiltro = GetFiltro(request.Filtros, "status");
@@ -196,43 +201,47 @@ public class RelatorioService : IRelatorioService
             CargoPermissions.CanSeeManutencaoAgenda(cargo))
         {
             var manutencoes = await _db.ManutencoesObrigatorias.AsNoTracking()
-                .Where(m => m.CondominioId == request.CondominioId &&
+                .Include(m => m.Condominio)
+                .Where(m => ids.Contains(m.CondominioId) &&
                             (m.Status == ManutencaoStatus.Upcoming || m.Status == ManutencaoStatus.Overdue))
                 .ToListAsync();
 
             foreach (var m in manutencoes)
             {
                 var desc = m.Tipo + (string.IsNullOrEmpty(m.Observacoes) ? "" : " — " + m.Observacoes);
-                itens.Add((m.DataVencimento, "manutencao_obrigatoria", m.Status, new[]
-                {
+                itens.Add((m.DataVencimento, "manutencao_obrigatoria", m.Status, Linha(
+                    todos,
+                    m.Condominio.Nome,
                     "Manutenção obrigatória",
                     desc,
                     m.DataVencimento.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
                     m.Status,
                     m.Id.ToString()
-                }));
+                ).ToArray()));
             }
         }
 
         if (IncluiTipoAgenda(tipoFiltro, "contrato") && CargoPermissions.CanSeeContratoAgenda(cargo))
         {
             var contratos = await _db.Contratos.AsNoTracking()
+                .Include(c => c.Condominio)
                 .Include(c => c.Fornecedor)
-                .Where(c => c.CondominioId == request.CondominioId &&
+                .Where(c => ids.Contains(c.CondominioId) &&
                             c.Status == ContratoStatus.Expiring &&
                             c.DataFim.HasValue)
                 .ToListAsync();
 
             foreach (var c in contratos)
             {
-                itens.Add((c.DataFim!.Value, "contrato", c.Status, new[]
-                {
+                itens.Add((c.DataFim!.Value, "contrato", c.Status, Linha(
+                    todos,
+                    c.Condominio.Nome,
                     "Contrato",
                     $"{c.TipoServico} — {c.Fornecedor.Nome}",
                     c.DataFim.Value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
                     c.Status,
                     c.Id.ToString()
-                }));
+                ).ToArray()));
             }
         }
 
@@ -240,27 +249,28 @@ public class RelatorioService : IRelatorioService
         {
             var hoje = BrazilTime.Today;
             var limite = hoje.AddDays(MandatoAgenda.WindowDays);
-            var condominio = await _db.Condominios.AsNoTracking()
-                .Where(c => c.Id == request.CondominioId &&
+            var condominios = await _db.Condominios.AsNoTracking()
+                .Where(c => ids.Contains(c.Id) &&
                             c.VencimentoMandato.HasValue &&
                             c.VencimentoMandato.Value <= limite)
                 .Select(c => new { c.Nome, Vencimento = c.VencimentoMandato!.Value, c.Id })
-                .FirstOrDefaultAsync();
+                .ToListAsync();
 
-            if (condominio is not null)
+            foreach (var condominio in condominios)
             {
                 var status = MandatoAgenda.Status(condominio.Vencimento, hoje);
-                if (status is not null)
-                {
-                    itens.Add((condominio.Vencimento, "mandato", status, new[]
-                    {
-                        "Mandato",
-                        "Vencimento do mandato do síndico",
-                        condominio.Vencimento.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
-                        status,
-                        condominio.Id.ToString()
-                    }));
-                }
+                if (status is null)
+                    continue;
+
+                itens.Add((condominio.Vencimento, "mandato", status, Linha(
+                    todos,
+                    condominio.Nome,
+                    "Mandato",
+                    "Vencimento do mandato do síndico",
+                    condominio.Vencimento.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+                    status,
+                    condominio.Id.ToString()
+                ).ToArray()));
             }
         }
 
@@ -282,52 +292,54 @@ public class RelatorioService : IRelatorioService
     private static bool IncluiTipoAgenda(string? tipoFiltro, string tipo) =>
         string.IsNullOrWhiteSpace(tipoFiltro) || tipoFiltro == "all" || tipoFiltro == tipo;
 
-    private async Task<ReportDocumentModel> BuildAgendaMandatosAsync(GerarRelatorioRequest request)
+    private async Task<ReportDocumentModel> BuildAgendaMandatosAsync(IReadOnlyList<Guid> ids)
     {
-        var c = await _db.Condominios.AsNoTracking()
-            .FirstAsync(x => x.Id == request.CondominioId);
+        var condominios = await _db.Condominios.AsNoTracking()
+            .Where(x => ids.Contains(x.Id))
+            .OrderBy(x => x.Nome)
+            .ToListAsync();
 
         var colunas = new[] { "Condomínio", "Data eleição", "Vencimento mandato" };
-        var linhas = new List<IReadOnlyList<string>>
+        var linhas = condominios.Select(c => (IReadOnlyList<string>)new[]
         {
-            new[]
-            {
-                c.Nome,
-                c.DataEleicao?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "—",
-                c.VencimentoMandato?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "—"
-            }
-        };
+            c.Nome,
+            c.DataEleicao?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "—",
+            c.VencimentoMandato?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "—"
+        }).ToList();
 
         return new ReportDocumentModel
         {
             Titulo = "Agenda de mandatos",
             Periodo = null,
             Colunas = colunas,
-            Linhas = linhas
+            Linhas = GarantirLinhas(colunas.Length, linhas)
         };
     }
 
-    private async Task<ReportDocumentModel> BuildManutencoesAsync(GerarRelatorioRequest request)
+    private async Task<ReportDocumentModel> BuildManutencoesAsync(
+        GerarRelatorioRequest request, IReadOnlyList<Guid> ids, bool todos)
     {
         var statusFiltro = GetFiltro(request.Filtros, "status");
 
         var query = _db.ManutencoesObrigatorias.AsNoTracking()
-            .Where(m => m.CondominioId == request.CondominioId);
+            .Include(m => m.Condominio)
+            .Where(m => ids.Contains(m.CondominioId));
 
         if (!string.IsNullOrWhiteSpace(statusFiltro))
             query = query.Where(m => m.Status == statusFiltro);
 
         var list = await query.OrderBy(m => m.DataVencimento).ToListAsync();
 
-        var colunas = new[] { "Tipo", "Data vencimento", "Última realização", "Status", "Observações" };
-        var linhas = list.Select(m => (IReadOnlyList<string>)new[]
-        {
+        var colunas = Colunas(todos, "Tipo", "Data vencimento", "Última realização", "Status", "Observações");
+        var linhas = list.Select(m => Linha(
+            todos,
+            m.Condominio.Nome,
             m.Tipo,
             m.DataVencimento.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
             m.UltimaRealizacao?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "—",
             m.Status,
             m.Observacoes ?? "—"
-        }).ToList();
+        )).ToList();
 
         return new ReportDocumentModel
         {
@@ -337,6 +349,12 @@ public class RelatorioService : IRelatorioService
             Linhas = GarantirLinhas(colunas.Length, linhas)
         };
     }
+
+    private static string[] Colunas(bool todos, params string[] colunas) =>
+        todos ? ["Condomínio", ..colunas] : colunas;
+
+    private static IReadOnlyList<string> Linha(bool todos, string? condominio, params string[] campos) =>
+        todos ? [string.IsNullOrWhiteSpace(condominio) ? "—" : condominio, ..campos] : campos;
 
     private static string? GetFiltro(Dictionary<string, string> filtros, string key)
     {

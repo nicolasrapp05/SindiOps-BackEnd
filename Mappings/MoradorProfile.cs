@@ -11,6 +11,7 @@ public class MoradorProfile : Profile
         CreateMap<Bloco, BlocoRefResponse>();
 
         CreateMap<MoradorUnidade, MoradorResponse>()
+            .ForMember(d => d.Condominio, o => o.MapFrom(s => s.Unidade.Condominio))
             .ForMember(d => d.Nome, o => o.MapFrom(s => s.Morador.Usuario.Nome))
             .ForMember(d => d.Email, o => o.MapFrom(s => s.Morador.Usuario.Email))
             .ForMember(d => d.Telefone, o => o.MapFrom(s => s.Morador.Usuario.Telefone))

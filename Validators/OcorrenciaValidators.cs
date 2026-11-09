@@ -4,15 +4,6 @@ using SindiOps.API.DTOs.Requests;
 
 namespace SindiOps.API.Validators;
 
-public class OcorrenciaQueryParamsValidator : AbstractValidator<OcorrenciaQueryParams>
-{
-    public OcorrenciaQueryParamsValidator()
-    {
-        RuleFor(x => x.CondominioId)
-            .NotEmpty().WithMessage("condominioId é obrigatório");
-    }
-}
-
 public class CreateOcorrenciaRequestValidator : AbstractValidator<CreateOcorrenciaRequest>
 {
     public CreateOcorrenciaRequestValidator()

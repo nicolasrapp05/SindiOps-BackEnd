@@ -25,11 +25,11 @@ public class MoradoresController : ControllerBase
     // GET api/v1/moradores?condominioId=&blocoId=&unidadeId=&search=&page=&pageSize=
     [HttpGet]
     public async Task<IActionResult> GetAll(
-        [FromQuery] Guid condominioId,
+        [FromQuery] Guid? condominioId,
         [FromQuery] MoradorQueryParams queryParams)
     {
         var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
-        var data = await _service.GetAllAsync(condominioId, sindicoId, queryParams);
+        var data = await _service.GetAllAsync(condominioId, sindicoId, queryParams, _currentUser.UserId);
         return Ok(data);
     }
 
@@ -38,7 +38,7 @@ public class MoradoresController : ControllerBase
     public async Task<IActionResult> GetById(Guid id)
     {
         var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
-        var data = await _service.GetByIdAsync(id, sindicoId);
+        var data = await _service.GetByIdAsync(id, sindicoId, _currentUser.UserId);
         return Ok(ApiResponse<object>.Ok(data));
     }
 
@@ -47,7 +47,7 @@ public class MoradoresController : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreateMoradorRequest request)
     {
         var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
-        var data = await _service.CreateAsync(request, sindicoId);
+        var data = await _service.CreateAsync(request, sindicoId, _currentUser.UserId);
         return StatusCode(201, ApiResponse<object>.Ok(data, "Morador cadastrado com sucesso"));
     }
 
@@ -56,7 +56,7 @@ public class MoradoresController : ControllerBase
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateMoradorRequest request)
     {
         var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
-        var data = await _service.UpdateAsync(id, request, sindicoId);
+        var data = await _service.UpdateAsync(id, request, sindicoId, _currentUser.UserId);
         return Ok(ApiResponse<object>.Ok(data));
     }
 
@@ -65,7 +65,7 @@ public class MoradoresController : ControllerBase
     public async Task<IActionResult> Delete(Guid id)
     {
         var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
-        await _service.DeleteAsync(id, sindicoId);
+        await _service.DeleteAsync(id, sindicoId, _currentUser.UserId);
         return Ok(ApiResponse<object?>.Ok(null, "Morador removido com sucesso"));
     }
 
@@ -77,7 +77,7 @@ public class MoradoresController : ControllerBase
         [FromQuery] int pageSize = 10)
     {
         var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
-        var data = await _service.GetEmailLogsAsync(id, sindicoId, page, pageSize);
+        var data = await _service.GetEmailLogsAsync(id, sindicoId, page, pageSize, _currentUser.UserId);
         return Ok(data);
     }
 }
