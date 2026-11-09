@@ -61,6 +61,7 @@ public class OcorrenciaProfile : Profile
             Telefone = ocorrencia.Morador.Usuario.Telefone,
             Unidade = new UnidadeNumeroRefResponse
             {
+                Id = ocupacao.UnidadeId,
                 Numero = ocupacao.Unidade?.Numero ?? ocorrencia.Unidade?.Numero ?? string.Empty,
             },
         };
