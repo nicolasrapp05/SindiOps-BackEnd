@@ -1,5 +1,6 @@
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using SindiOps.API.Constants;
 using SindiOps.API.DTOs.Requests;
 using SindiOps.API.DTOs.Responses;
 using SindiOps.API.Helpers;
@@ -19,16 +20,11 @@ public class EmailLogService : IEmailLogService
         _mapper = mapper;
     }
 
-    public async Task<PaginatedResponse<EmailLogResponse>> GetAllAsync(Guid userId, EmailLogQueryParams q)
+    public async Task<EmailLogListaResponse> GetAllAsync(Guid userId, EmailLogQueryParams q)
     {
         var sindicoId = await UsuarioSindicoScope.ResolveSindicoIdAsync(_db, userId);
 
         var query = _db.EmailLogs.AsNoTracking()
-            .Include(e => e.Morador).ThenInclude(m => m.Usuario)
-            .Include(e => e.Ocorrencia)
-            .Include(e => e.Template)
-            .Include(e => e.EnviadoPor).ThenInclude(u => u.Sindico)
-            .Include(e => e.EnviadoPor).ThenInclude(u => u.Funcionario)
             .Where(e => e.SindicoId == sindicoId);
 
         if (q.CondominioId.HasValue)
@@ -63,9 +59,6 @@ public class EmailLogService : IEmailLogService
                 e.EmailDestinatario.ToLower().Contains(term));
         }
 
-        if (!string.IsNullOrWhiteSpace(q.StatusEntrega))
-            query = query.Where(e => e.StatusEntrega == q.StatusEntrega);
-
         if (q.DataInicio.HasValue)
         {
             var start = q.DataInicio.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
@@ -78,18 +71,40 @@ public class EmailLogService : IEmailLogService
             query = query.Where(e => e.EnviadoEm <= end);
         }
 
+        var porStatus = await query
+            .GroupBy(e => e.StatusEntrega)
+            .Select(g => new { Status = g.Key, Quantidade = g.Count() })
+            .ToListAsync();
+
+        var resumo = new EmailLogContagemResponse
+        {
+            TotalEntregues = porStatus.FirstOrDefault(x => x.Status == EmailLogStatus.Delivered)?.Quantidade ?? 0,
+            FalhasCriticas = porStatus.FirstOrDefault(x => x.Status == EmailLogStatus.Failed)?.Quantidade ?? 0,
+            Total = porStatus.Sum(x => x.Quantidade),
+        };
+
+        if (!string.IsNullOrWhiteSpace(q.StatusEntrega))
+            query = query.Where(e => e.StatusEntrega == q.StatusEntrega);
+
         var totalCount = await query.CountAsync();
         var pageSize = Math.Clamp(q.PageSize, 1, 100);
         var page = Math.Max(q.Page, 1);
+
+        var detalhada = query
+            .Include(e => e.Morador).ThenInclude(m => m.Usuario)
+            .Include(e => e.Ocorrencia)
+            .Include(e => e.Template)
+            .Include(e => e.EnviadoPor).ThenInclude(u => u.Sindico)
+            .Include(e => e.EnviadoPor).ThenInclude(u => u.Funcionario);
 
         var sort = ListSort.Key(q.Sort, "template", "enviadoEm", "status");
         var desc = ListSort.Descending(q.Dir);
         var ordered = sort switch
         {
-            "template" => ListSort.By(query, e => e.Template != null ? e.Template.Tipo : "", desc),
-            "status" => ListSort.By(query, e => e.StatusEntrega, desc),
-            "enviadoEm" => ListSort.By(query, e => e.EnviadoEm, desc),
-            _ => ListSort.By(query, e => e.EnviadoEm, true),
+            "template" => ListSort.By(detalhada, e => e.Template != null ? e.Template.Tipo : "", desc),
+            "status" => ListSort.By(detalhada, e => e.StatusEntrega, desc),
+            "enviadoEm" => ListSort.By(detalhada, e => e.EnviadoEm, desc),
+            _ => ListSort.By(detalhada, e => e.EnviadoEm, true),
         };
 
         var items = await ordered
@@ -98,11 +113,12 @@ public class EmailLogService : IEmailLogService
             .Take(pageSize)
             .ToListAsync();
 
-        return new PaginatedResponse<EmailLogResponse>
+        return new EmailLogListaResponse
         {
             Data = _mapper.Map<List<EmailLogResponse>>(items),
             TotalCount = totalCount,
-            PageSize = pageSize
+            PageSize = pageSize,
+            Resumo = resumo,
         };
     }
 
