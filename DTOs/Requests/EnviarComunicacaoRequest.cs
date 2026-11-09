@@ -8,4 +8,5 @@ public class EnviarComunicacaoRequest
     public string CorpoEditado { get; set; } = string.Empty;
     public decimal? ValorMulta { get; set; }
     public string? PrazoResposta { get; set; }
+    public bool EnviarCopiaProprietario { get; set; }
 }

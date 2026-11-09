@@ -7,4 +7,5 @@ public class ComunicacaoResponse
     public string Assunto { get; set; } = string.Empty;
     public string StatusEntrega { get; set; } = string.Empty;
     public DateTime EnviadoEm { get; set; }
+    public ComunicacaoResponse? CopiaProprietario { get; set; }
 }

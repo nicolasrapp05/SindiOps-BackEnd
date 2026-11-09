@@ -62,11 +62,92 @@ public class ComunicacaoService : IComunicacaoService
             .FirstOrDefaultAsync(s => s.Id == sindicoId)
             ?? throw new KeyNotFoundException("Síndico não encontrado");
 
-        var valores = MontarVariaveisTemplate(ocorrencia, ocupacao, sindico.Usuario, request.ValorMulta, request.PrazoResposta);
+        var proprietario = await ResolverCopiaProprietarioAsync(request, ocupacao);
 
+        var valores = MontarVariaveisTemplate(ocorrencia, ocupacao, sindico.Usuario, request.ValorMulta, request.PrazoResposta);
         var assunto = _templateResolver.Resolve(request.AssuntoEditado, valores, nameof(EnviarComunicacaoRequest.AssuntoEditado));
         var corpo = _templateResolver.Resolve(request.CorpoEditado, valores, nameof(EnviarComunicacaoRequest.CorpoEditado));
 
+        string? assuntoCopia = null;
+        string? corpoCopia = null;
+        if (proprietario is not null)
+        {
+            var valoresCopia = MontarVariaveisTemplate(
+                ocorrencia, proprietario, sindico.Usuario, request.ValorMulta, request.PrazoResposta);
+            assuntoCopia = _templateResolver.Resolve(
+                request.AssuntoEditado, valoresCopia, nameof(EnviarComunicacaoRequest.AssuntoEditado));
+            corpoCopia = _templateResolver.Resolve(
+                request.CorpoEditado, valoresCopia, nameof(EnviarComunicacaoRequest.CorpoEditado));
+        }
+
+        var log = await EnviarERegistrarAsync(
+            sindicoId, template.Id, ocorrenciaId, ocupacao, assunto, corpo, request, enviadoPorId);
+
+        EmailLog? logCopia = null;
+        if (proprietario is not null && assuntoCopia is not null && corpoCopia is not null)
+        {
+            logCopia = await EnviarERegistrarAsync(
+                sindicoId, template.Id, ocorrenciaId, proprietario, assuntoCopia, corpoCopia, request, enviadoPorId);
+        }
+
+        _db.EmailLogs.Add(log);
+        if (logCopia is not null)
+            _db.EmailLogs.Add(logCopia);
+
+        await _db.SaveChangesAsync();
+
+        var resposta = ParaResposta(log);
+        if (logCopia is not null)
+            resposta.CopiaProprietario = ParaResposta(logCopia);
+
+        return resposta;
+    }
+
+    private async Task<MoradorUnidade?> ResolverCopiaProprietarioAsync(
+        EnviarComunicacaoRequest request,
+        MoradorUnidade ocupacao)
+    {
+        if (!request.EnviarCopiaProprietario)
+            return null;
+
+        var proprietario = await _db.MoradorUnidades
+            .Include(o => o.Morador).ThenInclude(m => m.Usuario)
+            .Include(o => o.Unidade).ThenInclude(u => u.Bloco)
+            .FirstOrDefaultAsync(o =>
+                o.UnidadeId == ocupacao.UnidadeId &&
+                o.Papel == MoradorPapel.Proprietario);
+
+        if (proprietario is null)
+            throw new ValidationException(new[]
+            {
+                new ValidationFailure(
+                    nameof(EnviarComunicacaoRequest.EnviarCopiaProprietario),
+                    "Esta unidade não tem um proprietário.")
+            });
+
+        if (proprietario.Id == ocupacao.Id
+            || proprietario.MoradorId == ocupacao.MoradorId
+            || string.Equals(
+                proprietario.Morador.Usuario.Email,
+                ocupacao.Morador.Usuario.Email,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return proprietario;
+    }
+
+    private async Task<EmailLog> EnviarERegistrarAsync(
+        Guid sindicoId,
+        Guid templateId,
+        Guid ocorrenciaId,
+        MoradorUnidade ocupacao,
+        string assunto,
+        string corpo,
+        EnviarComunicacaoRequest request,
+        Guid enviadoPorId)
+    {
         var enviadoOk = false;
         try
         {
@@ -77,10 +158,11 @@ public class ComunicacaoService : IComunicacaoService
             enviadoOk = false;
         }
 
-        var log = new EmailLog
+        return new EmailLog
         {
+            Id = Guid.NewGuid(),
             SindicoId = sindicoId,
-            TemplateId = template.Id,
+            TemplateId = templateId,
             OcorrenciaId = ocorrenciaId,
             MoradorId = ocupacao.MoradorId,
             EmailDestinatario = ocupacao.Morador.Usuario.Email,
@@ -92,19 +174,16 @@ public class ComunicacaoService : IComunicacaoService
             StatusEntrega = enviadoOk ? EmailLogStatus.Delivered : EmailLogStatus.Failed,
             CriadoEm = DateTime.UtcNow
         };
-
-        _db.EmailLogs.Add(log);
-        await _db.SaveChangesAsync();
-
-        return new ComunicacaoResponse
-        {
-            Id = log.Id,
-            EmailDestinatario = log.EmailDestinatario,
-            Assunto = log.Assunto,
-            StatusEntrega = log.StatusEntrega,
-            EnviadoEm = log.EnviadoEm
-        };
     }
+
+    private static ComunicacaoResponse ParaResposta(EmailLog log) => new()
+    {
+        Id = log.Id,
+        EmailDestinatario = log.EmailDestinatario,
+        Assunto = log.Assunto,
+        StatusEntrega = log.StatusEntrega,
+        EnviadoEm = log.EnviadoEm
+    };
 
     private static Dictionary<string, string> MontarVariaveisTemplate(
         Ocorrencia ocorrencia, MoradorUnidade ocupacao, Usuario sindico, decimal? valorMulta, string? prazoResposta)
