@@ -74,7 +74,7 @@ public class MoradoresController : ControllerBase
     public async Task<IActionResult> GetEmailLogs(
         Guid id,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = 10)
     {
         var sindicoId = await _currentUser.GetSindicoScopeIdAsync();
         var data = await _service.GetEmailLogsAsync(id, sindicoId, page, pageSize);

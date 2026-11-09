@@ -10,7 +10,7 @@ public class OcorrenciaQueryParams
     public DateOnly? DataInicio { get; set; }
     public DateOnly? DataFim { get; set; }
     public int Page { get; set; } = 1;
-    public int PageSize { get; set; } = 20;
+    public int PageSize { get; set; } = 10;
     public string? Sort { get; set; }
     public string? Dir { get; set; }
 }
