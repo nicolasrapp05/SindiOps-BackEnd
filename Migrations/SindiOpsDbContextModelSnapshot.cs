@@ -868,7 +868,7 @@ namespace SindiOps.API.Migrations
 
                             t.HasCheckConstraint("ck_ocorrencias_status", "status IN ('nova', 'em_andamento', 'finalizada', 'cancelada')");
 
-                            t.HasCheckConstraint("ck_ocorrencias_tipo_local", "tipo_local IS NULL OR tipo_local IN ('area_comum','estacionamento','portaria','jardim','salao_festas','hall','corredores','vizinhos','outro')");
+                            t.HasCheckConstraint("ck_ocorrencias_tipo_local", "tipo_local IS NULL OR tipo_local IN ('area_comum','estacionamento','portaria','jardim','salao_festas','hall','corredores','vizinhos','churrasqueira','academia','outro')");
 
                             t.HasCheckConstraint("ck_ocorrencias_tipo_ocorrencia", "tipo_ocorrencia IS NULL OR tipo_ocorrencia IN ('barulho','pets','garagem','alteracao_fachada','objetos_corredores','objetos_janelas_sacadas','outro')");
                         });
