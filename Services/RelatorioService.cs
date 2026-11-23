@@ -87,9 +87,9 @@ public class RelatorioService : IRelatorioService
             todos,
             o.Condominio.Nome,
             BrazilTime.ToBrazil(o.OcorreuEm).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture),
-            o.TipoOcorrencia,
-            o.Status,
-            o.Origem,
+            Rotulos.OcorrenciaTipo(o.TipoOcorrencia),
+            Rotulos.StatusOcorrencia(o.Status),
+            Rotulos.OrigemOcorrencia(o.Origem),
             Truncar(o.Descricao, 200)
         )).ToList();
 
@@ -130,7 +130,7 @@ public class RelatorioService : IRelatorioService
                 todos,
                 c.SolicitacaoCompra.Condominio.Nome,
                 linha.Item.Descricao,
-                linha.Item.Categoria,
+                Rotulos.CompraCategoria(linha.Item.Categoria),
                 fornecedorNome,
                 linha.ValorUnitario.ToString("F2", CultureInfo.InvariantCulture),
                 linha.ValorTotal.ToString("F2", CultureInfo.InvariantCulture),
@@ -173,9 +173,9 @@ public class RelatorioService : IRelatorioService
             todos,
             s.Condominio.Nome,
             item.Descricao,
-            item.Categoria,
+            Rotulos.CompraCategoria(item.Categoria),
             item.Quantidade.ToString("F2", CultureInfo.InvariantCulture),
-            s.Status,
+            Rotulos.CompraStatus(s.Status),
             item.EReposicao ? "Sim" : "Não",
             s.CriadoEm.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) + " UTC"
         ))).ToList();
@@ -208,14 +208,15 @@ public class RelatorioService : IRelatorioService
 
             foreach (var m in manutencoes)
             {
-                var desc = m.Tipo + (string.IsNullOrEmpty(m.Observacoes) ? "" : " — " + m.Observacoes);
+                var tipo = Rotulos.TipoManutencaoObrigatoria(m.Tipo);
+                var desc = tipo + (string.IsNullOrEmpty(m.Observacoes) ? "" : " — " + m.Observacoes);
                 itens.Add((m.DataVencimento, "manutencao_obrigatoria", m.Status, Linha(
                     todos,
                     m.Condominio.Nome,
                     "Manutenção obrigatória",
                     desc,
                     m.DataVencimento.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
-                    m.Status,
+                    Rotulos.StatusManutencao(m.Status),
                     m.Id.ToString()
                 ).ToArray()));
             }
@@ -237,9 +238,9 @@ public class RelatorioService : IRelatorioService
                     todos,
                     c.Condominio.Nome,
                     "Contrato",
-                    $"{c.TipoServico} — {c.Fornecedor.Nome}",
+                    $"{Rotulos.ContratoTipoServico(c.TipoServico)} — {c.Fornecedor.Nome}",
                     c.DataFim.Value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
-                    c.Status,
+                    Rotulos.StatusContrato(c.Status),
                     c.Id.ToString()
                 ).ToArray()));
             }
@@ -262,13 +263,17 @@ public class RelatorioService : IRelatorioService
                 if (status is null)
                     continue;
 
+                var rotuloStatus = status == ContratoStatus.Expiring
+                    ? Rotulos.StatusContrato(status)
+                    : Rotulos.StatusManutencao(status);
+
                 itens.Add((condominio.Vencimento, "mandato", status, Linha(
                     todos,
                     condominio.Nome,
                     "Mandato",
                     "Vencimento do mandato do síndico",
                     condominio.Vencimento.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
-                    status,
+                    rotuloStatus,
                     condominio.Id.ToString()
                 ).ToArray()));
             }
@@ -334,10 +339,10 @@ public class RelatorioService : IRelatorioService
         var linhas = list.Select(m => Linha(
             todos,
             m.Condominio.Nome,
-            m.Tipo,
+            Rotulos.TipoManutencaoObrigatoria(m.Tipo),
             m.DataVencimento.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
             m.UltimaRealizacao?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "—",
-            m.Status,
+            Rotulos.StatusManutencao(m.Status),
             m.Observacoes ?? "—"
         )).ToList();
 

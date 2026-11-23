@@ -117,7 +117,7 @@ public class DashboardService : IDashboardService
             agenda.AddRange(manutencoesEntities.Select(m => new AgendaItem
             {
                 Tipo = "manutencao_obrigatoria",
-                Descricao = m.Tipo + (string.IsNullOrEmpty(m.Observacoes) ? "" : " — " + m.Observacoes),
+                Descricao = Rotulos.TipoManutencaoObrigatoria(m.Tipo) + (string.IsNullOrEmpty(m.Observacoes) ? "" : " — " + m.Observacoes),
                 DataVencimento = m.DataVencimento,
                 Status = m.Status,
                 CondominioId = m.CondominioId,
@@ -139,7 +139,7 @@ public class DashboardService : IDashboardService
                 .Select(c => new AgendaItem
                 {
                     Tipo = "contrato",
-                    Descricao = $"{c.TipoServico} — {c.Fornecedor.Nome}",
+                    Descricao = $"{Rotulos.ContratoTipoServico(c.TipoServico)} — {c.Fornecedor.Nome}",
                     DataVencimento = c.DataFim!.Value,
                     Status = c.Status,
                     CondominioId = c.CondominioId,

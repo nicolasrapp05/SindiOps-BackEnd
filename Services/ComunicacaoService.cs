@@ -209,7 +209,7 @@ public class ComunicacaoService : IComunicacaoService
             ["condominio"] = ocorrencia.Condominio.Nome,
             ["data_ocorrencia"] = ocorrencia.OcorreuEm.ToString("dd/MM/yyyy HH:mm", CultureInfo.GetCultureInfo("pt-BR")),
             ["descricao_ocorrencia"] = ocorrencia.Descricao,
-            ["tipo_ocorrencia"] = ocorrencia.TipoOcorrencia,
+            ["tipo_ocorrencia"] = Rotulos.OcorrenciaTipo(ocorrencia.TipoOcorrencia),
             ["nome_sindico"] = sindico.Nome,
             ["data_envio"] = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm", CultureInfo.GetCultureInfo("pt-BR")),
             ["valor_multa"] = valorMulta.HasValue ? valorMulta.Value.ToString("F2", CultureInfo.InvariantCulture) : string.Empty,

@@ -102,7 +102,7 @@ public class FornecedorService : IFornecedorService
 
         fornecedor.Servicos = request.Servicos.Select(s => new ServicoFornecedor
         {
-            Tipo = s.Tipo,
+            Tipo = ServicoTipoTexto.Normalizar(s.Tipo),
             Descricao = s.Descricao,
             Quantidade = s.Quantidade,
             CriadoEm = DateTime.UtcNow
@@ -142,7 +142,7 @@ public class FornecedorService : IFornecedorService
         fornecedor.Servicos = request.Servicos.Select(s => new ServicoFornecedor
         {
             FornecedorId = fornecedor.Id,
-            Tipo = s.Tipo,
+            Tipo = ServicoTipoTexto.Normalizar(s.Tipo),
             Descricao = s.Descricao,
             Quantidade = s.Quantidade,
             CriadoEm = DateTime.UtcNow
