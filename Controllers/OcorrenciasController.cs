@@ -83,6 +83,7 @@ public class OcorrenciasController : ControllerBase
     }
 
     [HttpPost("{id:guid}/comunicacoes")]
+    [RequireAdminCargo]
     public async Task<IActionResult> EnviarComunicacao(Guid id, [FromBody] EnviarComunicacaoRequest request)
     {
         var userId = User.GetUserId();

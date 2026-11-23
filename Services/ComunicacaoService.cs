@@ -41,6 +41,10 @@ public class ComunicacaoService : IComunicacaoService
                 new ValidationFailure("", "Utilizador não autorizado a enviar comunicações")
             });
 
+        var cargo = await UserCargoResolver.ResolveAsync(_db, enviadoPorId, null);
+        if (!CargoPermissions.CanAccessAdmin(cargo))
+            throw new UnauthorizedAccessException("Apenas síndico e secretário podem enviar comunicações.");
+
         var ocorrencia = await _db.Ocorrencias
             .Include(o => o.Condominio)
             .Include(o => o.Morador)!.ThenInclude(m => m!.Usuario)
